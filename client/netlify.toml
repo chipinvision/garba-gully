@@ -1,7 +1,7 @@
 # Netlify Configuration when base directory is client
 
 [build]
-  publish = "dist"
+  publish = "client/dist"
   command = "npm run build"
 
 [build.environment]
