@@ -1,0 +1,493 @@
+/* DancePreviewModal.css — Festive Navratri Styling */
+
+.dance-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 4, 15, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.dance-preview-modal {
+  background: linear-gradient(135deg, #180d28 0%, #12091e 100%);
+  border: 1px solid rgba(245, 200, 66, 0.35);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(245, 200, 66, 0.15);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 980px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #fdf4e7;
+}
+
+/* Header */
+.dance-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.75rem;
+  border-bottom: 1px solid rgba(245, 200, 66, 0.18);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dance-preview-header__title {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.dance-preview-header__icon {
+  font-size: 1.8rem;
+}
+
+.dance-preview-header h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #f5c842;
+  letter-spacing: -0.01em;
+}
+
+.dance-preview-header p {
+  margin: 0.2rem 0 0 0;
+  font-size: 0.85rem;
+  color: rgba(253, 244, 231, 0.65);
+}
+
+.btn-close {
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+}
+
+/* Content layout: 2 columns */
+.dance-preview-content {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 1.25rem;
+  padding: 1.25rem 1.75rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+@media (max-width: 840px) {
+  .dance-preview-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left Stage */
+.dance-preview-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* Style Selector Tabs */
+.dance-style-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.3rem;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 200, 66, 0.15);
+}
+
+.dance-style-tab {
+  background: transparent;
+  border: none;
+  color: rgba(253, 244, 231, 0.7);
+  padding: 0.65rem 0.8rem;
+  border-radius: 9px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.dance-style-tab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dance-style-tab--active {
+  background: linear-gradient(135deg, #f5c842 0%, #e08b14 100%);
+  color: #1a0826;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(245, 200, 66, 0.3);
+}
+
+/* Canvas Wrapper */
+.dance-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3.4;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(245, 200, 66, 0.25);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6);
+  background: #0d0814;
+}
+
+.dance-preview-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* View Angle Pills */
+.dance-view-pills {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 4px;
+  background: rgba(13, 8, 20, 0.8);
+  backdrop-filter: blur(8px);
+  padding: 4px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.pill-btn {
+  background: transparent;
+  border: none;
+  color: rgba(253, 244, 231, 0.65);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pill-btn:hover {
+  color: #fff;
+}
+
+.pill-btn--active {
+  background: rgba(245, 200, 66, 0.3);
+  color: #f5c842;
+  border: 1px solid rgba(245, 200, 66, 0.45);
+}
+
+/* Stage Banner */
+.dance-stage-banner {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(13, 8, 20, 0.82);
+  backdrop-filter: blur(8px);
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 200, 66, 0.2);
+}
+
+.dance-stage-banner__name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #fdf4e7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Timeline Controls */
+.dance-timeline-controls {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.dance-timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.dance-scrubber-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+}
+
+.scrubber-label {
+  font-size: 0.78rem;
+  color: rgba(253, 244, 231, 0.6);
+  font-weight: 500;
+}
+
+.dance-scrubber {
+  flex: 1;
+  accent-color: #f5c842;
+  cursor: pointer;
+}
+
+.scrubber-pct {
+  font-size: 0.78rem;
+  color: #f5c842;
+  font-family: monospace;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Beat Pills */
+.dance-beat-pills {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.beat-pill {
+  flex: 1;
+  min-width: 65px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 5px 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: all 0.15s ease;
+}
+
+.beat-pill:hover {
+  background: rgba(245, 200, 66, 0.1);
+  border-color: rgba(245, 200, 66, 0.3);
+}
+
+.beat-pill--active {
+  background: rgba(245, 200, 66, 0.2);
+  border-color: #f5c842;
+  box-shadow: 0 0 10px rgba(245, 200, 66, 0.25);
+}
+
+.beat-pill__num {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #f5c842;
+}
+
+.beat-pill__name {
+  font-size: 0.66rem;
+  color: rgba(253, 244, 231, 0.85);
+  white-space: nowrap;
+}
+
+/* Right: Inspector */
+.dance-preview-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.inspector-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(245, 200, 66, 0.12);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.inspector-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.inspector-card__header h4 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #f5c842;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Step Detail Box */
+.step-detail-box {
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid #f5c842;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0 8px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.step-detail-box__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.step-detail-box__title .step-num {
+  color: #f5c842;
+}
+
+.step-detail-box__desc {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(253, 244, 231, 0.85);
+  line-height: 1.4;
+}
+
+.step-detail-box__cultural {
+  font-size: 0.76rem;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  line-height: 1.35;
+}
+
+/* Authenticity Checklist */
+.auth-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.auth-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.78rem;
+  color: rgba(253, 244, 231, 0.85);
+  line-height: 1.35;
+}
+
+.auth-item strong {
+  color: #fde68a;
+  display: inline;
+  margin-right: 4px;
+}
+
+.auth-icon {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border-radius: 50%;
+  width: 17px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: bold;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Sliders */
+.slider-control-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: rgba(253, 244, 231, 0.75);
+}
+
+.slider-control-row input[type="range"] {
+  accent-color: #f5c842;
+  cursor: pointer;
+}
+
+/* Avatar & Outfit preview picks */
+.character-preview-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.pick-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pick-label {
+  font-size: 0.72rem;
+  color: rgba(253, 244, 231, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pick-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pick-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(253, 244, 231, 0.8);
+  font-size: 0.74rem;
+  padding: 3px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pick-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.pick-chip--active {
+  background: rgba(245, 200, 66, 0.25);
+  border-color: #f5c842;
+  color: #f5c842;
+  font-weight: 600;
+}
+
+/* Footer */
+.dance-preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.75rem;
+  border-top: 1px solid rgba(245, 200, 66, 0.18);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.dance-preview-footer__left {
+  font-size: 0.88rem;
+  color: rgba(253, 244, 231, 0.75);
+}
+
+.dance-preview-footer__actions {
+  display: flex;
+  gap: 0.75rem;
+}
