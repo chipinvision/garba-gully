@@ -32,6 +32,10 @@
     "@colyseus/schema": "^5.0.14",
     "@colyseus/tools": "^0.18.1",
     "colyseus": "^0.18.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "uWebSockets.js": "https://github.com/uNetworking/uWebSockets.js/archive/v20.52.0.tar.gz"
+  },
+  "overrides": {
+    "uWebSockets.js": "https://github.com/uNetworking/uWebSockets.js/archive/v20.52.0.tar.gz"
   }
 }
