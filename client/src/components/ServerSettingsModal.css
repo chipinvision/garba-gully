@@ -51,12 +51,74 @@
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.15rem;
 }
 
-.server-warning-box {
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.35);
+/* Mode cards */
+.server-mode-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.server-mode-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0.95rem 1.15rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.server-mode-card:hover {
+  background: rgba(245, 200, 66, 0.06);
+  border-color: rgba(245, 200, 66, 0.3);
+}
+
+.server-mode-card--active {
+  background: rgba(245, 200, 66, 0.1);
+  border-color: #f5c842;
+  box-shadow: 0 0 15px rgba(245, 200, 66, 0.15);
+}
+
+.server-mode-card__top {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.server-mode-radio {
+  color: #f5c842;
+  font-size: 1.15rem;
+}
+
+.server-mode-card strong {
+  font-size: 0.92rem;
+  color: #fdf4e7;
+}
+
+.server-mode-card p {
+  margin: 0;
+  padding-left: 1.8rem;
+  font-size: 0.79rem;
+  color: rgba(253, 244, 231, 0.78);
+  line-height: 1.45;
+}
+
+.server-mode-card code {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: #f5c842;
+  font-size: 0.76rem;
+}
+
+.server-status-box {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
   border-radius: 12px;
   padding: 0.85rem 1rem;
   display: flex;
@@ -64,27 +126,22 @@
   gap: 0.75rem;
 }
 
-.server-warning-icon {
-  font-size: 1.35rem;
-  line-height: 1;
-}
-
-.server-warning-box strong {
+.server-status-box strong {
   display: block;
   font-size: 0.88rem;
-  color: #fde68a;
+  color: #86efac;
   margin-bottom: 0.25rem;
 }
 
-.server-warning-box p {
+.server-status-box p {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.79rem;
   color: rgba(253, 244, 231, 0.85);
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
-.server-warning-box code {
-  background: rgba(0, 0, 0, 0.35);
+.server-status-box code {
+  background: rgba(0, 0, 0, 0.4);
   padding: 1px 5px;
   border-radius: 4px;
   color: #f5c842;
@@ -131,39 +188,6 @@
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.35);
   color: #fca5a5;
-}
-
-.server-tips-box {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 0.85rem 1rem;
-}
-
-.server-tips-box h6 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #f5c842;
-}
-
-.server-tips-box ul {
-  margin: 0;
-  padding-left: 1.15rem;
-  font-size: 0.78rem;
-  color: rgba(253, 244, 231, 0.8);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  line-height: 1.4;
-}
-
-.server-tips-box code {
-  background: rgba(255, 255, 255, 0.08);
-  padding: 1px 5px;
-  border-radius: 4px;
-  color: #fde68a;
-  font-family: monospace;
 }
 
 .server-modal__footer {

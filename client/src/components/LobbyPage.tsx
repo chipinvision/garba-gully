@@ -75,7 +75,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {inviteToken && (
-              <span className="badge badge-gold">🔑 Code: {inviteToken}</span>
+              <span className="badge badge-gold">🔑 Room: {inviteToken}</span>
             )}
             <button
               type="button"
@@ -83,9 +83,9 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
               className="btn btn-ghost btn-sm"
               style={{ color: '#f5c842', padding: '4px 8px' }}
               onClick={() => setShowServerSettings(true)}
-              title="Configure Multiplayer Server URL"
+              title="Configure Multiplayer Network Mode"
             >
-              ⚙️ Server
+              ⚙️ Network
             </button>
           </div>
         </div>

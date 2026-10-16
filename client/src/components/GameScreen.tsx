@@ -140,11 +140,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   // ── Copy invite link ─────────────────────────────────────────────────────
   const copyInviteLink = useCallback(async () => {
+    const activeCode = roomId || inviteToken;
+    const isP2P = activeCode.startsWith('garba-');
     const serverUrl = getServerUrl();
-    const isCustomServer = serverUrl && !serverUrl.includes('localhost') && !serverUrl.includes('127.0.0.1');
+    const isCustomServer = !isP2P && serverUrl && !serverUrl.includes('localhost') && !serverUrl.includes('127.0.0.1');
     const serverParam = isCustomServer ? `&server=${encodeURIComponent(serverUrl)}` : '';
-    const roomParam = roomId ? `&room=${encodeURIComponent(roomId)}` : '';
-    const link = `${window.location.origin}?invite=${encodeURIComponent(inviteToken)}${roomParam}${serverParam}`;
+    const link = `${window.location.origin}?room=${encodeURIComponent(activeCode)}${serverParam}`;
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getServerUrl, setServerUrl } from '../colyseus';
+import { getServerUrl, setServerUrl, isP2PMode, setNetworkMode } from '../colyseus';
 import './ServerSettingsModal.css';
 
 interface ServerSettingsModalProps {
@@ -8,23 +8,25 @@ interface ServerSettingsModalProps {
 
 export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClose }) => {
   const currentUrl = getServerUrl();
+  const [selectedMode, setSelectedMode] = useState<'p2p' | 'colyseus'>(() => isP2PMode() ? 'p2p' : 'colyseus');
   const [urlInput, setUrlInput] = useState(currentUrl);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const isRemoteSite = typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname);
-  const isPointingToLocalhost = currentUrl.includes('localhost') || currentUrl.includes('127.0.0.1');
-
   const handleSave = () => {
-    setServerUrl(urlInput.trim());
+    setNetworkMode(selectedMode);
+    if (selectedMode === 'colyseus') {
+      setServerUrl(urlInput.trim());
+    }
     onClose();
-    // Reload to apply new server across all modules
     window.location.reload();
   };
 
   const handleReset = () => {
+    setNetworkMode('p2p');
+    setSelectedMode('p2p');
     setServerUrl('');
-    setUrlInput(getServerUrl());
+    setUrlInput('ws://localhost:2567');
     setTestResult(null);
   };
 
@@ -39,7 +41,6 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClos
     }
 
     try {
-      // Test resolve API
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000);
 
@@ -51,9 +52,8 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClos
       });
       clearTimeout(timeoutId);
 
-      // 404 with JSON { error: "Room not found or has ended" } means server is ONLINE!
       if (res.status === 404 || res.status === 200) {
-        setTestResult({ ok: true, msg: '✓ Connected successfully! Server is online and responsive.' });
+        setTestResult({ ok: true, msg: '✓ Connected successfully! Colyseus server is online and responsive.' });
       } else {
         setTestResult({ ok: false, msg: `⚠️ Server returned HTTP ${res.status}.` });
       }
@@ -62,7 +62,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClos
         setTestResult({ ok: false, msg: '⏱ Connection timed out after 6 seconds.' });
       } else {
         const msg = err.message === 'Load failed'
-          ? 'Load failed (Network Error / Mixed Content). Make sure the server URL uses https:// or wss:// on deployed HTTPS sites.'
+          ? 'Load failed (Network Error / Mixed Content). Ensure the server URL uses https:// or wss:// on HTTPS sites.'
           : err.message || 'Failed to connect to server.';
         setTestResult({ ok: false, msg: `❌ ${msg}` });
       }
@@ -72,86 +72,100 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({ onClos
   };
 
   return (
-    <div className="server-modal-overlay fade-in" role="dialog" aria-label="Multiplayer Server Settings">
+    <div className="server-modal-overlay fade-in" role="dialog" aria-label="Multiplayer Network Settings">
       <div className="server-modal scale-in">
         <div className="server-modal__header">
           <div className="server-modal__title">
             <span>⚙️</span>
-            <h4>Multiplayer Server Configuration</h4>
+            <h4>Multiplayer Network Mode</h4>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
         <div className="server-modal__body">
-          {/* Warning if on Netlify with localhost backend */}
-          {isRemoteSite && isPointingToLocalhost && (
-            <div className="server-warning-box">
-              <span className="server-warning-icon">⚠️</span>
+          {/* Mode selector cards */}
+          <div className="server-mode-cards">
+            {/* P2P Mode */}
+            <div
+              className={`server-mode-card ${selectedMode === 'p2p' ? 'server-mode-card--active' : ''}`}
+              onClick={() => setSelectedMode('p2p')}
+            >
+              <div className="server-mode-card__top">
+                <span className="server-mode-radio">{selectedMode === 'p2p' ? '◉' : '○'}</span>
+                <strong>⚡ Serverless WebRTC (Netlify-Native)</strong>
+                <span className="badge badge-gold" style={{ fontSize: '0.65rem', marginLeft: 'auto' }}>Recommended</span>
+              </div>
+              <p>
+                Runs <strong>100% on Netlify</strong> with zero external servers! Dancers connect directly peer-to-peer with ultra-low latency. No Render or Railway accounts needed.
+              </p>
+            </div>
+
+            {/* Dedicated Colyseus Mode */}
+            <div
+              className={`server-mode-card ${selectedMode === 'colyseus' ? 'server-mode-card--active' : ''}`}
+              onClick={() => setSelectedMode('colyseus')}
+            >
+              <div className="server-mode-card__top">
+                <span className="server-mode-radio">{selectedMode === 'colyseus' ? '◉' : '○'}</span>
+                <strong>🖥️ Dedicated WebSocket Server (Optional)</strong>
+              </div>
+              <p>
+                Connect to a custom Colyseus server (e.g. <code>ws://localhost:2567</code> for local testing or custom VPS).
+              </p>
+            </div>
+          </div>
+
+          {/* Colyseus specific inputs */}
+          {selectedMode === 'colyseus' && (
+            <div className="server-field fade-in">
+              <label htmlFor="input-server-url" className="server-label">
+                Colyseus Server URL:
+              </label>
+              <div className="server-input-row">
+                <input
+                  id="input-server-url"
+                  type="text"
+                  className="input server-input"
+                  placeholder="ws://localhost:2567 or wss://custom-server.com"
+                  value={urlInput}
+                  onChange={(e) => {
+                    setUrlInput(e.target.value);
+                    setTestResult(null);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={testConnection}
+                  disabled={testing || !urlInput.trim()}
+                >
+                  {testing ? 'Testing…' : '🔌 Test'}
+                </button>
+              </div>
+              {testResult && (
+                <div className={`server-test-result ${testResult.ok ? 'server-test-result--success' : 'server-test-result--error'}`}>
+                  {testResult.msg}
+                </div>
+              )}
+            </div>
+          )}
+
+          {selectedMode === 'p2p' && (
+            <div className="server-status-box fade-in">
+              <span style={{ fontSize: '1.2rem' }}>🎉</span>
               <div>
-                <strong>Localhost Server Detected on Deployed Site</strong>
+                <strong>Zero Backend Required!</strong>
                 <p>
-                  Your site is running on <code>{window.location.hostname}</code>, but the multiplayer server is set to <code>{currentUrl}</code>.
-                  Friends on other devices cannot reach your laptop's localhost. Enter a public backend URL below so other dancers can join.
+                  Invite links look like <code>{window.location.origin}?room=garba-XXXX</code>. Anyone with the link connects straight into the room via WebRTC.
                 </p>
               </div>
             </div>
           )}
-
-          <div className="server-field">
-            <label htmlFor="input-server-url" className="server-label">
-              Colyseus Server WebSocket / HTTP URL:
-            </label>
-            <div className="server-input-row">
-              <input
-                id="input-server-url"
-                type="text"
-                className="input server-input"
-                placeholder="wss://your-garba-server.onrender.com"
-                value={urlInput}
-                onChange={(e) => {
-                  setUrlInput(e.target.value);
-                  setTestResult(null);
-                }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={testConnection}
-                disabled={testing || !urlInput.trim()}
-              >
-                {testing ? 'Testing…' : '🔌 Test'}
-              </button>
-            </div>
-          </div>
-
-          {/* Test connection output */}
-          {testResult && (
-            <div className={`server-test-result ${testResult.ok ? 'server-test-result--success' : 'server-test-result--error'}`}>
-              {testResult.msg}
-            </div>
-          )}
-
-          {/* Quick guide */}
-          <div className="server-tips-box">
-            <h6>💡 How to Host the Multiplayer Server:</h6>
-            <ul>
-              <li>
-                <strong>Option 1: Deploy on Render.com (Permanent &amp; Free)</strong>
-                <br />
-                Deploy the <code>server/</code> folder as a Render Web Service (Node.js). Once live, paste your <code>wss://your-app.onrender.com</code> URL above or set <code>VITE_SERVER_URL</code> in your Netlify site settings.
-              </li>
-              <li>
-                <strong>Option 2: Instant Public Tunnel for Testing</strong>
-                <br />
-                Run <code>npx localtunnel --port 2567</code> or Cloudflare Tunnel on your laptop while the server is running. Paste the generated public HTTPS URL above.
-              </li>
-            </ul>
-          </div>
         </div>
 
         <div className="server-modal__footer">
           <button type="button" className="btn btn-ghost btn-sm" onClick={handleReset}>
-            Reset to Default
+            Reset to Netlify P2P
           </button>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button type="button" className="btn btn-ghost" onClick={onClose}>

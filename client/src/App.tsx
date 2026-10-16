@@ -10,9 +10,10 @@ import './App.css';
 // Parse invite parameters from URL
 function getInviteParamsFromUrl(): { token?: string; roomId?: string; server?: string } {
   const params = new URLSearchParams(window.location.search);
+  const rawRoom = params.get('room') || params.get('invite') || undefined;
   return {
-    token: params.get('invite') || undefined,
-    roomId: params.get('room') || undefined,
+    token: rawRoom,
+    roomId: rawRoom,
     server: params.get('server') || undefined,
   };
 }
@@ -42,8 +43,9 @@ function App() {
       setServerUrl(server);
     }
     if (token || roomId) {
-      if (token) setInviteToken(token);
-      if (roomId) setDirectRoomId(roomId);
+      const activeCode = roomId || token;
+      setInviteToken(activeCode);
+      setDirectRoomId(activeCode);
       setLobbyMode('join');
       setScreen('lobby');
     }
@@ -55,19 +57,21 @@ function App() {
       showToast(room.errorMessage || 'Connection error', 'error');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.connectionStatus, room.errorMessage]);
+  }, [screen, room.connectionStatus, room.errorMessage, showToast]);
 
   // ── Navigation handlers ──────────────────────────────────────────────────
 
   const goToCreate = () => {
     setLobbyMode('create');
     setInviteToken(undefined);
+    setDirectRoomId(undefined);
     setScreen('lobby');
   };
 
   const goToJoin = (token: string) => {
     setLobbyMode('join');
     setInviteToken(token);
+    setDirectRoomId(token);
     setScreen('lobby');
   };
 
@@ -85,28 +89,23 @@ function App() {
       if (lobbyMode === 'create') {
         await room.createRoom(nickname, avatarId, outfitId, playlistId);
       } else {
-        if (!inviteToken && !directRoomId) throw new Error('Missing invite token or room ID');
-        await room.joinRoom(inviteToken || directRoomId || '', nickname, avatarId, outfitId, directRoomId);
-      }
-      // Update URL with invite token for easy sharing
-      if (room.inviteToken) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('invite', room.inviteToken);
-        if (room.roomId) url.searchParams.set('room', room.roomId);
-        window.history.replaceState({}, '', url.toString());
+        const target = directRoomId || inviteToken;
+        if (!target) throw new Error('Missing room code');
+        await room.joinRoom(target, nickname, avatarId, outfitId, target);
       }
       setScreen('game');
     } catch (_e) {
       // Error is shown via room.errorMessage
     }
-  }, [lobbyMode, inviteToken, directRoomId, room]);
+  }, [lobbyMode, directRoomId, inviteToken, room]);
 
   // After room is connected, update invite token and URL
   useEffect(() => {
-    if (room.inviteToken && screen === 'game') {
+    const code = room.roomId || room.inviteToken;
+    if (code && screen === 'game') {
       const url = new URL(window.location.href);
-      url.searchParams.set('invite', room.inviteToken);
-      if (room.roomId) url.searchParams.set('room', room.roomId);
+      url.searchParams.set('room', code);
+      url.searchParams.delete('invite');
       window.history.replaceState({}, '', url.toString());
     }
   }, [room.inviteToken, room.roomId, screen]);

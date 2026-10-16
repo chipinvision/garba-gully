@@ -1,16 +1,19 @@
 /**
- * useGarbaRoom — React hook that manages the Colyseus room connection
- * and exposes room state, YouTube playlist state, and actions to UI components.
+ * useGarbaRoom — React hook that manages room connections.
+ * Supports:
+ * 1. Serverless WebRTC P2P Mode (Trystero): 100% Netlify-native, zero external servers or Render needed!
+ * 2. Dedicated Colyseus Server Mode: For custom WebSocket servers.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Room } from '@colyseus/sdk';
-import { colyseusClient, resolveToken, schemaPlayersToMap } from '../colyseus';
+import { colyseusClient, resolveToken, schemaPlayersToMap, isP2PMode } from '../colyseus';
+import { P2PGarbaRoom } from '../services/p2pGarbaRoom';
 import type { PlayerData } from '../types';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 export interface MusicCommand {
-  type: 'play' | 'pause' | 'next' | 'init';
+  type: 'play' | 'pause' | 'next' | 'sync' | 'init';
   trackIndex?: number;
   positionSeconds?: number;
   lastPlaybackCommandAt?: number;
@@ -19,7 +22,7 @@ export interface MusicCommand {
 }
 
 export interface RoomHookResult {
-  room: Room | null;
+  room: any | null;
   roomId: string;
   sessionId: string;
   players: Map<string, PlayerData>;
@@ -28,6 +31,7 @@ export interface RoomHookResult {
   connectionStatus: ConnectionStatus;
   isHost: boolean;
   errorMessage: string;
+  isP2P: boolean;
   // YouTube Playlist state
   playlistId: string;
   currentTrackIndex: number;
@@ -41,15 +45,28 @@ export interface RoomHookResult {
   leaveRoom:  () => void;
   sendMove:   (dx: number, dy: number) => void;
   sendDance:  (isDancing: boolean, danceStyle?: 'garba' | 'dandiya') => void;
-  // Music controls (host-authorized on server)
+  // Music controls (host-authorized)
   sendMusicPlay:  (trackIndex?: number, positionSeconds?: number) => void;
   sendMusicPause: (positionSeconds?: number) => void;
   sendMusicNext:  (trackIndex?: number) => void;
   sendMusicSync:  (trackIndex: number, positionSeconds: number, playbackState: 'playing' | 'paused') => void;
 }
 
+function generateP2PRoomId(): string {
+  const chars = '23456789abcdefghjkmnpqrstuvwxyz'; // readable base32 without ambiguous 0/1/o/l
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `garba-${code}`;
+}
+
 export function useGarbaRoom(): RoomHookResult {
-  const [room, setRoom] = useState<Room | null>(null);
+  const [colyseusRoom, setColyseusRoom] = useState<Room | null>(null);
+  const [p2pRoomInstance, setP2pRoomInstance] = useState<P2PGarbaRoom | null>(null);
+  const [activeMode, setActiveMode] = useState<'p2p' | 'colyseus'>('p2p');
+
+  const [roomId, setRoomId] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [players, setPlayers] = useState<Map<string, PlayerData>>(new Map());
   const [inviteToken, setInviteToken] = useState('');
@@ -66,21 +83,23 @@ export function useGarbaRoom(): RoomHookResult {
   const [lastPlaybackCommandAt, setLastPlaybackCommandAt] = useState(0);
   const [latestMusicCommand, setLatestMusicCommand] = useState<MusicCommand | null>(null);
 
-  // Keep a ref to avoid stale closures in callbacks
-  const roomRef = useRef<Room | null>(null);
+  const colyseusRoomRef = useRef<Room | null>(null);
+  const p2pRoomRef = useRef<P2PGarbaRoom | null>(null);
 
-  const bindRoom = useCallback((r: Room, sid: string) => {
-    roomRef.current = r;
-    setRoom(r);
+  // ── Colyseus Binder ────────────────────────────────────────────────────────
+  const bindColyseusRoom = useCallback((r: Room, sid: string) => {
+    colyseusRoomRef.current = r;
+    setColyseusRoom(r);
     setSessionId(sid);
+    setRoomId(r.roomId);
+    setActiveMode('colyseus');
     setConnectionStatus('connected');
     setErrorMessage('');
 
-    // Initial state sync
     const syncState = () => {
       const ps = schemaPlayersToMap(r.state?.players);
       setPlayers(new Map(ps));
-      setInviteToken(r.state?.inviteToken ?? '');
+      setInviteToken(r.state?.inviteToken ?? r.roomId);
       setMusicStartedAt(r.state?.musicStartedAt ?? 0);
       setPlaylistId(r.state?.playlistId ?? '');
       setCurrentTrackIndex(r.state?.currentTrackIndex ?? 0);
@@ -92,10 +111,8 @@ export function useGarbaRoom(): RoomHookResult {
     };
     syncState();
 
-    // Listen for state changes
     r.onStateChange(() => syncState());
 
-    // Server messages
     r.onMessage('musicSync', (data: { startedAt: number }) => {
       setMusicStartedAt(data.startedAt);
     });
@@ -136,73 +153,179 @@ export function useGarbaRoom(): RoomHookResult {
       setConnectionStatus('error');
     });
 
-    r.onMessage('pong', (_data: any) => {
-      // Latency measurement
-    });
-
-    // Connection events
     r.onLeave((_code) => {
       setConnectionStatus('disconnected');
-      setRoom(null);
-      roomRef.current = null;
+      setColyseusRoom(null);
+      colyseusRoomRef.current = null;
     });
 
     r.onError((code, msg) => {
-      console.error('[room] error', code, msg);
+      console.error('[Colyseus] room error', code, msg);
       setErrorMessage(msg || `Connection error (${code})`);
       setConnectionStatus('error');
     });
   }, []);
 
+  // ── Create Room Action ─────────────────────────────────────────────────────
   const createRoom = useCallback(async (
     nickname: string,
     avatarId: number,
     outfitId: number,
-    playlistId?: string
+    playlistIdParam?: string
   ) => {
     setConnectionStatus('connecting');
     setErrorMessage('');
+
+    const useP2P = isP2PMode();
+
+    if (useP2P) {
+      try {
+        const generatedId = generateP2PRoomId();
+        setActiveMode('p2p');
+        setRoomId(generatedId);
+        setInviteToken(generatedId);
+        setPlaylistId((playlistIdParam || '').trim());
+
+        const p2p = new P2PGarbaRoom(generatedId, {
+          onPlayersChange: (newPlayers) => setPlayers(new Map(newPlayers)),
+          onMusicCommand: (cmd) => {
+            if (typeof cmd.trackIndex === 'number') setCurrentTrackIndex(cmd.trackIndex);
+            if (typeof cmd.positionSeconds === 'number') setPlaybackPositionSeconds(cmd.positionSeconds);
+            if (cmd.playbackState) setPlaybackState(cmd.playbackState);
+            if (typeof cmd.lastPlaybackCommandAt === 'number') setLastPlaybackCommandAt(cmd.lastPlaybackCommandAt);
+            if (cmd.playlistId) setPlaylistId(cmd.playlistId);
+            setLatestMusicCommand(cmd);
+          },
+          onConnectionStatus: (st, err) => {
+            setConnectionStatus(st);
+            if (err) setErrorMessage(err);
+          },
+          onHostChange: (hostStatus, _hostId) => {
+            setIsHost(hostStatus);
+            if (hostStatus) setErrorMessage('');
+          },
+        });
+
+        p2pRoomRef.current = p2p;
+        setP2pRoomInstance(p2p);
+        setSessionId(p2p.sessionId);
+        setIsHost(true);
+
+        await p2p.initAsHost(nickname, avatarId, outfitId, playlistIdParam);
+        setConnectionStatus('connected');
+      } catch (err: any) {
+        setConnectionStatus('error');
+        setErrorMessage(err?.message || 'Failed to initialize serverless P2P room.');
+        throw err;
+      }
+      return;
+    }
+
+    // Colyseus mode
     try {
       const r = await colyseusClient.create('garba_room', {
         nickname,
         avatarId,
         outfitId,
-        playlistId: (playlistId || '').trim(),
+        playlistId: (playlistIdParam || '').trim(),
       });
-      bindRoom(r, r.sessionId);
+      bindColyseusRoom(r, r.sessionId);
     } catch (e: any) {
       setConnectionStatus('error');
       setErrorMessage(e?.message || 'Failed to create room');
       throw e;
     }
-  }, [bindRoom]);
+  }, [bindColyseusRoom]);
 
-  const joinRoom = useCallback(async (token: string, nickname: string, avatarId: number, outfitId: number, directRoomId?: string) => {
+  // ── Join Room Action ───────────────────────────────────────────────────────
+  const joinRoom = useCallback(async (
+    token: string,
+    nickname: string,
+    avatarId: number,
+    outfitId: number,
+    directRoomId?: string
+  ) => {
     setConnectionStatus('connecting');
     setErrorMessage('');
-    try {
-      // If direct roomId is known from the invite link, use it directly without HTTP fetch
-      let roomId = directRoomId;
-      if (!roomId) {
-        roomId = await resolveToken(token);
+
+    const targetCode = (directRoomId || token || '').trim();
+    const isP2PCode = targetCode.startsWith('garba-') || isP2PMode();
+
+    if (isP2PCode) {
+      try {
+        setActiveMode('p2p');
+        setRoomId(targetCode);
+        setInviteToken(targetCode);
+
+        const p2p = new P2PGarbaRoom(targetCode, {
+          onPlayersChange: (newPlayers) => setPlayers(new Map(newPlayers)),
+          onMusicCommand: (cmd) => {
+            if (typeof cmd.trackIndex === 'number') setCurrentTrackIndex(cmd.trackIndex);
+            if (typeof cmd.positionSeconds === 'number') setPlaybackPositionSeconds(cmd.positionSeconds);
+            if (cmd.playbackState) setPlaybackState(cmd.playbackState);
+            if (typeof cmd.lastPlaybackCommandAt === 'number') setLastPlaybackCommandAt(cmd.lastPlaybackCommandAt);
+            if (cmd.playlistId) setPlaylistId(cmd.playlistId);
+            setLatestMusicCommand(cmd);
+          },
+          onConnectionStatus: (st, err) => {
+            setConnectionStatus(st);
+            if (err) setErrorMessage(err);
+          },
+          onHostChange: (hostStatus) => {
+            setIsHost(hostStatus);
+          },
+        });
+
+        p2pRoomRef.current = p2p;
+        setP2pRoomInstance(p2p);
+        setSessionId(p2p.sessionId);
+        setIsHost(false);
+
+        await p2p.initAsGuest(nickname, avatarId, outfitId);
+      } catch (err: any) {
+        setConnectionStatus('error');
+        setErrorMessage(err?.message || 'Failed to connect to P2P room.');
+        throw err;
       }
-      const r = await colyseusClient.joinById(roomId, { nickname, avatarId, outfitId, inviteToken: token });
-      bindRoom(r, r.sessionId);
+      return;
+    }
+
+    // Colyseus mode
+    try {
+      let resolvedRoomId = directRoomId;
+      if (!resolvedRoomId) {
+        resolvedRoomId = await resolveToken(token);
+      }
+      const r = await colyseusClient.joinById(resolvedRoomId, {
+        nickname,
+        avatarId,
+        outfitId,
+        inviteToken: token,
+      });
+      bindColyseusRoom(r, r.sessionId);
     } catch (e: any) {
       setConnectionStatus('error');
       const msg = e?.message || 'Failed to join room';
       setErrorMessage(msg.includes('not found') ? 'Room not found or has ended.' : msg);
       throw e;
     }
-  }, [bindRoom]);
+  }, [bindColyseusRoom]);
 
+  // ── Leave Room Action ──────────────────────────────────────────────────────
   const leaveRoom = useCallback(() => {
-    if (roomRef.current) {
-      roomRef.current.leave();
-      roomRef.current = null;
+    if (p2pRoomRef.current) {
+      p2pRoomRef.current.leave();
+      p2pRoomRef.current = null;
     }
-    setRoom(null);
+    if (colyseusRoomRef.current) {
+      colyseusRoomRef.current.leave();
+      colyseusRoomRef.current = null;
+    }
+
+    setP2pRoomInstance(null);
+    setColyseusRoom(null);
     setSessionId('');
+    setRoomId('');
     setPlayers(new Map());
     setInviteToken('');
     setPlaylistId('');
@@ -215,49 +338,75 @@ export function useGarbaRoom(): RoomHookResult {
     setIsHost(false);
   }, []);
 
+  // ── User Movement & Dance ──────────────────────────────────────────────────
   const sendMove = useCallback((dx: number, dy: number) => {
-    roomRef.current?.send('move', { dx, dy });
-  }, []);
+    if (activeMode === 'p2p' && p2pRoomRef.current) {
+      p2pRoomRef.current.sendMove(dx, dy);
+    } else if (colyseusRoomRef.current) {
+      colyseusRoomRef.current.send('move', { dx, dy });
+    }
+  }, [activeMode]);
 
-  const sendDance = useCallback((isDancing: boolean, danceStyle?: 'garba' | 'dandiya') => {
-    roomRef.current?.send('dance', { isDancing, danceStyle });
-  }, []);
+  const sendDance = useCallback((isDancingParam: boolean, danceStyleParam?: 'garba' | 'dandiya') => {
+    if (activeMode === 'p2p' && p2pRoomRef.current) {
+      p2pRoomRef.current.sendDance(isDancingParam, danceStyleParam);
+    } else if (colyseusRoomRef.current) {
+      colyseusRoomRef.current.send('dance', { isDancing: isDancingParam, danceStyle: danceStyleParam });
+    }
+  }, [activeMode]);
 
+  // ── Music Control Actions ──────────────────────────────────────────────────
   const sendMusicPlay = useCallback((trackIndex?: number, positionSeconds?: number) => {
-    roomRef.current?.send('music:play', { trackIndex, positionSeconds });
-  }, []);
+    if (activeMode === 'p2p' && p2pRoomRef.current) {
+      p2pRoomRef.current.sendMusicPlay(trackIndex, positionSeconds);
+    } else if (colyseusRoomRef.current) {
+      colyseusRoomRef.current.send('music:play', { trackIndex, positionSeconds });
+    }
+  }, [activeMode]);
 
   const sendMusicPause = useCallback((positionSeconds?: number) => {
-    roomRef.current?.send('music:pause', { positionSeconds });
-  }, []);
+    if (activeMode === 'p2p' && p2pRoomRef.current) {
+      p2pRoomRef.current.sendMusicPause(positionSeconds);
+    } else if (colyseusRoomRef.current) {
+      colyseusRoomRef.current.send('music:pause', { positionSeconds });
+    }
+  }, [activeMode]);
 
   const sendMusicNext = useCallback((trackIndex?: number) => {
-    roomRef.current?.send('music:next', { trackIndex });
-  }, []);
+    if (activeMode === 'p2p' && p2pRoomRef.current) {
+      p2pRoomRef.current.sendMusicNext(trackIndex);
+    } else if (colyseusRoomRef.current) {
+      colyseusRoomRef.current.send('music:next', { trackIndex });
+    }
+  }, [activeMode]);
 
-  const sendMusicSync = useCallback((trackIndex: number, positionSeconds: number, playbackState: 'playing' | 'paused') => {
-    roomRef.current?.send('music:sync', { trackIndex, positionSeconds, playbackState });
-  }, []);
+  const sendMusicSync = useCallback((trackIndex: number, positionSeconds: number, state: 'playing' | 'paused') => {
+    if (activeMode === 'p2p' && p2pRoomRef.current) {
+      p2pRoomRef.current.sendMusicSync(trackIndex, positionSeconds, state);
+    } else if (colyseusRoomRef.current) {
+      colyseusRoomRef.current.send('music:sync', { trackIndex, positionSeconds, playbackState: state });
+    }
+  }, [activeMode]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (roomRef.current) {
-        roomRef.current.leave();
-      }
+      if (p2pRoomRef.current) p2pRoomRef.current.leave();
+      if (colyseusRoomRef.current) colyseusRoomRef.current.leave();
     };
   }, []);
 
   return {
-    room,
-    roomId: roomRef.current?.roomId || room?.roomId || '',
+    room: activeMode === 'p2p' ? p2pRoomInstance : colyseusRoom,
+    roomId: roomId || p2pRoomInstance?.roomId || colyseusRoom?.roomId || '',
     sessionId,
     players,
-    inviteToken,
+    inviteToken: inviteToken || roomId,
     musicStartedAt,
     connectionStatus,
     isHost,
     errorMessage,
+    isP2P: activeMode === 'p2p',
     playlistId,
     currentTrackIndex,
     playbackState,

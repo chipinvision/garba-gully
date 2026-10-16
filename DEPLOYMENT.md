@@ -1,6 +1,15 @@
-# Garba Gully — Netlify Deployment Guide
+# 🪔 Garba Gully — Netlify Deployment Guide (Zero Backend Required)
 
-This repository is fully configured for deployment on **Netlify**.
+Garba Gully is fully configured to run **100% on Netlify** without needing Render, Railway, or any external backend servers!
+
+---
+
+## ⚡ How It Works (Netlify-Native Serverless WebRTC)
+
+- **Frontend & Assets:** Hosted entirely on Netlify's high-speed global CDN.
+- **Multiplayer State Sync:** Powered by browser-to-browser WebRTC data channels with decentralized signaling via public Nostr relays (Trystero).
+- **Audio & Dance:** Synchronized YouTube playlists and authentic 6-beat Garba & 4-beat Dandiya choreography stream directly between dancers.
+- **Zero Cost & Zero Maintenance:** No external container hosts, no sleeping servers, no cold starts, and no "Load failed" errors.
 
 ---
 
@@ -8,18 +17,16 @@ This repository is fully configured for deployment on **Netlify**.
 
 ### Method 1: Git-Connected Automated Deployment (Recommended)
 
-1. Push your repository to **GitHub**, **GitLab**, or **Bitbucket**.
+1. Push your repository to **GitHub** (`chipinvision/garba-gully`).
 2. Go to [Netlify Dashboard](https://app.netlify.com) and click **"Add new site"** → **"Import an existing project"**.
-3. Select your repository.
-4. Netlify will automatically detect the root [`netlify.toml`](file:///Users/apple/Downloads/garba-gully/netlify.toml) with these settings:
+3. Select `chipinvision/garba-gully`.
+4. Netlify will automatically detect the root [`netlify.toml`](./netlify.toml) settings:
    - **Base directory:** `client`
    - **Build command:** `npm run build`
    - **Publish directory:** `dist`
-5. **Environment Variables:**
-   - Under **Site configuration** → **Environment variables**, add:
-     - `VITE_SERVER_URL`: The WebSocket URL of your deployed Colyseus server (e.g. `wss://garba-gully-server.onrender.com`).
-     - *(Defaults to `ws://localhost:2567` if omitted)*.
+5. **No environment variables are required!** Leave them blank.
 6. Click **"Deploy site"**.
+7. Once live, open your Netlify URL (e.g. `https://garba-gully.netlify.app`), create a room, and share the invite link (`?room=garba-XXXX`) with friends!
 
 ---
 
@@ -35,21 +42,23 @@ This repository is fully configured for deployment on **Netlify**.
 
 ---
 
-## 🪔 Configuration Files Added
+## 🔗 How Invite Links Work
 
-- **[`netlify.toml`](file:///Users/apple/Downloads/garba-gully/netlify.toml)** (Root): Configures build pipeline, node runtime, SPA redirects, security headers, and asset caching.
-- **[`client/netlify.toml`](file:///Users/apple/Downloads/garba-gully/client/netlify.toml)**: Fallback configuration if Netlify is set with `client` as the root directory.
-- **[`client/public/_redirects`](file:///Users/apple/Downloads/garba-gully/client/public/_redirects)**: Redirects all routes `/* -> /index.html 200` to support invite links and client-side routing.
-- **[`package.json`](file:///Users/apple/Downloads/garba-gully/package.json)** (Root): Monorepo workspace configuration with root `npm run build` command.
-- **[`client/.env.example`](file:///Users/apple/Downloads/garba-gully/client/.env.example)**: Reference for production backend server URL.
+1. When you click **"Create Room"**, a unique room code is generated (e.g. `garba-7k2m`).
+2. Click **"Copy Invite Link"** inside the game to copy:
+   ```
+   https://your-site.netlify.app?room=garba-7k2m
+   ```
+3. When friends open the link on mobile or desktop:
+   - Netlify serves the game.
+   - The room code `garba-7k2m` is automatically filled in.
+   - Friends pick their nickname and avatar, click **"Join the Dance"**, and connect directly peer-to-peer!
 
 ---
 
-## 🌐 Backend Server Hosting (Colyseus WebSocket Server)
+## 🛠️ Optional: Dedicated Colyseus Server (For Local / Custom VPS)
 
-Because Colyseus multiplayer rooms maintain persistent, low-latency WebSocket connections and state synchronization across dancers, the server component (`server/`) should be hosted on a persistent container service:
-- **Render.com**: Web Service (Node.js, build: `npm install && npm run build`, start: `npm start`).
-- **Railway.app** or **Fly.io**: Direct Node deployment.
-- **Colyseus Cloud**: Managed Colyseus hosting.
-
-Once deployed, set `VITE_SERVER_URL=wss://your-backend-url` in your Netlify site settings.
+If you ever wish to run a dedicated Node.js WebSocket backend instead of Serverless P2P:
+1. Start the server locally (`cd server && npm start`).
+2. In the game lobby or HUD, click **⚙️ Network** and switch to **Dedicated WebSocket Server**.
+3. Enter your server URL (e.g. `ws://localhost:2567`).

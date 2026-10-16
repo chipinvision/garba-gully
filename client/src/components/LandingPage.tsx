@@ -29,7 +29,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     let token = t;
     try {
       const url = new URL(t);
-      token = url.searchParams.get('invite') || url.pathname.split('/').pop() || t;
+      token = url.searchParams.get('room') || url.searchParams.get('invite') || url.pathname.split('/').pop() || t;
     } catch {
       // it's a bare token
     }
