@@ -65,6 +65,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [showPlayers, setShowPlayers]         = useState(false);
   const [hostLeftMsg, setHostLeftMsg]         = useState('');
 
+  const [initError, setInitError]             = useState<string | null>(null);
+
   // Player list
   const playerList = Array.from(players.values());
 
@@ -72,40 +74,50 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   useEffect(() => {
     if (!containerRef.current || gameRef.current) return;
 
-    const scene = new GarbaScene();
-    sceneRef.current = scene;
+    try {
+      const scene = new GarbaScene();
+      sceneRef.current = scene;
 
-    scene.onMove = (dx, dy) => onMove(dx, dy);
-    scene.onDanceToggle = (dancing, style) => {
-      setIsDancing(dancing);
-      if (style) setDanceStyle(style);
-      onDance(dancing, style || danceStyle);
-    };
+      scene.onMove = (dx, dy) => onMove(dx, dy);
+      scene.onDanceToggle = (dancing, style) => {
+        setIsDancing(dancing);
+        if (style) setDanceStyle(style);
+        onDance(dancing, style || danceStyle);
+      };
 
-    const game = new Phaser.Game({
-      type: Phaser.AUTO,
-      parent: containerRef.current,
-      width: containerRef.current.clientWidth || 800,
-      height: containerRef.current.clientHeight || 600,
-      backgroundColor: '#0d0814',
-      scene: [scene],
-      scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-      },
-      render: {
-        antialias: true,
-        pixelArt: false,
-      },
-      disableContextMenu: true,
-      banner: false,
-    });
+      const initialWidth = containerRef.current.clientWidth || window.innerWidth || 800;
+      const initialHeight = containerRef.current.clientHeight || window.innerHeight || 600;
 
-    gameRef.current = game;
+      const game = new Phaser.Game({
+        type: Phaser.AUTO,
+        parent: containerRef.current,
+        width: initialWidth,
+        height: initialHeight,
+        backgroundColor: '#0c0616',
+        scene: [scene],
+        scale: {
+          mode: Phaser.Scale.RESIZE,
+          autoCenter: Phaser.Scale.CENTER_BOTH,
+        },
+        render: {
+          antialias: true,
+          pixelArt: false,
+        },
+        disableContextMenu: true,
+        banner: false,
+      });
+
+      gameRef.current = game;
+    } catch (err: any) {
+      console.error('[GameScreen] Failed to create Phaser game:', err);
+      setInitError(err?.message || 'Failed to initialize 3D Garba Canvas');
+    }
 
     return () => {
-      game.destroy(true);
-      gameRef.current = null;
+      if (gameRef.current) {
+        gameRef.current.destroy(true);
+        gameRef.current = null;
+      }
       sceneRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -113,12 +125,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   // ── Sync session id ──────────────────────────────────────────────────────
   useEffect(() => {
-    sceneRef.current?.setMySessionId(sessionId);
+    if (sceneRef.current && sessionId) {
+      sceneRef.current.setMySessionId(sessionId);
+    }
   }, [sessionId]);
 
   // ── Sync players to scene ────────────────────────────────────────────────
   useEffect(() => {
-    sceneRef.current?.syncPlayers(players);
+    if (sceneRef.current) {
+      sceneRef.current.syncPlayers(players);
+    }
   }, [players]);
 
   // ── Handle dance toggle from UI button ───────────────────────────────────
@@ -376,6 +392,17 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           <div className="game-overlay__content">
             <span style={{ fontSize: 36 }}>🚪</span>
             <p>{hostLeftMsg}</p>
+            <button className="btn btn-primary" onClick={onLeave}>Return to Home</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Init error overlay ── */}
+      {initError && (
+        <div className="game-overlay game-overlay--error fade-in">
+          <div className="game-overlay__content">
+            <span style={{ fontSize: 36 }}>⚠️</span>
+            <p>Arena Graphics Error: {initError}</p>
             <button className="btn btn-primary" onClick={onLeave}>Return to Home</button>
           </div>
         </div>

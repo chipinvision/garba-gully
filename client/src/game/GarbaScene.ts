@@ -36,13 +36,19 @@ function isoToScreen(tx: number, ty: number, originX: number, originY: number) {
 }
 
 // Garba circle floor radius in tiles
-const FLOOR_RADIUS = 6;
+const FLOOR_RADIUS = 9;
 
 export interface GarbaSceneEvents {
   onPlayersChange?: (players: Map<string, PlayerData>) => void;
 }
 
 export class GarbaScene extends Phaser.Scene {
+  // Lifecycle readiness flag to avoid race condition with React mount
+  private isSceneReady = false;
+  private pendingPlayers: Map<string, PlayerData> | null = null;
+  private pendingMySessionId: string = '';
+  private pendingDancing: { dancing: boolean; style?: DanceStyle } | null = null;
+
   // Player sprites keyed by sessionId
   private playerObjects = new Map<string, PlayerObject>();
   private mySessionId: string = '';
@@ -79,25 +85,76 @@ export class GarbaScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    try {
+      const { width, height } = this.scale;
+      this.originX = width / 2;
+      this.originY = height * 0.5;
+
+      // Solid background with optional gradient
+      const bg = this.add.graphics();
+      bg.fillStyle(0x0c0616, 1);
+      bg.fillRect(0, 0, width, height);
+      try {
+        bg.fillGradientStyle(0x0c0616, 0x0c0616, 0x180b2a, 0x180b2a, 1);
+        bg.fillRect(0, 0, width, height);
+      } catch {
+        // Fallback for non-WebGL renderers
+      }
+
+      this.drawFloor();
+      this.drawDecorations();
+      this.setupParticles();
+      this.setupInput();
+
+      // Handle window / canvas resize dynamically
+      this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
+        this.handleResize(gameSize.width, gameSize.height);
+      });
+
+      this.isSceneReady = true;
+
+      // Flush any state buffered before scene.create() executed
+      if (this.pendingMySessionId) {
+        this.mySessionId = this.pendingMySessionId;
+      }
+      if (this.pendingPlayers) {
+        this.syncPlayers(this.pendingPlayers);
+        this.pendingPlayers = null;
+      }
+      if (this.pendingDancing) {
+        this.setDancing(this.pendingDancing.dancing, this.pendingDancing.style);
+        this.pendingDancing = null;
+      }
+    } catch (err) {
+      console.error('[GarbaScene] Error during scene creation:', err);
+    }
+  }
+
+  private handleResize(width: number, height: number) {
     this.originX = width / 2;
-    this.originY = height * 0.35;
+    this.originY = height * 0.5;
 
-    // Background gradient
-    const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0d0814, 0x0d0814, 0x160d22, 0x160d22, 1);
-    bg.fillRect(0, 0, width, height);
+    if (this.floorGraphics) {
+      this.floorGraphics.clear();
+      this.drawFloorGraphics(this.floorGraphics);
+    }
+    if (this.decorGraphics) {
+      this.decorGraphics.clear();
+      this.drawDecorationsGraphics(this.decorGraphics, width, height);
+    }
 
-    this.drawFloor();
-    this.drawDecorations();
-    this.setupParticles();
-    this.setupInput();
+    // Immediately align player objects with new screen geometry
+    this.playerObjects.forEach((po) => {
+      po.syncPositionImmediate();
+    });
   }
 
   private drawFloor() {
     this.floorGraphics = this.add.graphics();
-    const g = this.floorGraphics;
+    this.drawFloorGraphics(this.floorGraphics);
+  }
 
+  private drawFloorGraphics(g: Phaser.GameObjects.Graphics) {
     // Draw isometric tiles in a circular pattern
     for (let tx = -FLOOR_RADIUS; tx <= FLOOR_RADIUS; tx++) {
       for (let ty = -FLOOR_RADIUS; ty <= FLOOR_RADIUS; ty++) {
@@ -106,14 +163,14 @@ export class GarbaScene extends Phaser.Scene {
 
         const { x, y } = isoToScreen(tx, ty, this.originX, this.originY);
 
-        // Alternating tile colors (rangoli pattern)
+        // Alternating tile colors (festive rangoli pattern)
         const isAlt = (Math.abs(tx + ty) % 2 === 0);
-        const isEdge = dist > FLOOR_RADIUS - 1.2;
-        const isCenter = dist < 1.5;
+        const isEdge = dist > FLOOR_RADIUS - 1.25;
+        const isCenter = dist < 2.2;
 
-        let fillColor = isAlt ? 0x1e0f34 : 0x26123f;
+        let fillColor = isAlt ? 0x1d0d34 : 0x251240;
         if (isEdge) fillColor = isAlt ? 0x4c1d95 : 0x3b1079;
-        if (isCenter) fillColor = 0x2e1065;
+        if (isCenter) fillColor = isAlt ? 0x3b0764 : 0x4a044e;
 
         // Top face
         g.fillStyle(fillColor, 1);
@@ -126,7 +183,7 @@ export class GarbaScene extends Phaser.Scene {
         g.fillPath();
 
         // Tile border
-        g.lineStyle(1, 0x7c3aed, isEdge ? 0.6 : 0.2);
+        g.lineStyle(1, 0x8b5cf6, isEdge ? 0.65 : 0.22);
         g.beginPath();
         g.moveTo(x, y - TILE_H / 2);
         g.lineTo(x + TILE_W / 2, y);
@@ -135,15 +192,15 @@ export class GarbaScene extends Phaser.Scene {
         g.closePath();
         g.strokePath();
 
-        // Gold dot at center of edge tiles (rangoli dots)
-        if (isEdge && dist > FLOOR_RADIUS - 0.8) {
-          g.fillStyle(0xf5c842, 0.7);
+        // Gold dot at center of edge tiles (traditional rangoli dots)
+        if (isEdge && dist > FLOOR_RADIUS - 0.9) {
+          g.fillStyle(0xf5c842, 0.85);
           g.fillCircle(x, y, 2.5);
         }
       }
     }
 
-    // Central mandala
+    // Central sacred mandala
     this.drawMandala(g);
   }
 
@@ -151,81 +208,106 @@ export class GarbaScene extends Phaser.Scene {
     const cx = this.originX;
     const cy = this.originY;
 
-    // Outer ring of petals
-    for (let i = 0; i < 12; i++) {
-      const angle = (i / 12) * Math.PI * 2;
-      // Flatten for isometric look
-      const px = cx + Math.cos(angle) * 38;
-      const py = cy + Math.sin(angle) * 19 - 4;
-      const size = 8;
-      const hue = i * 30;
-      const color = Phaser.Display.Color.HSLToColor(hue / 360, 0.8, 0.55).color;
-      g.fillStyle(color, 0.7);
+    // Outer ring of 16 lotus petals
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      const px = cx + Math.cos(angle) * 44;
+      const py = cy + Math.sin(angle) * 22 - 2;
+      const size = 9;
+
+      const hue = i * 22.5;
+      const color = Phaser.Display.Color.HSLToColor(hue / 360, 0.85, 0.55).color;
+      g.fillStyle(color, 0.75);
       g.fillCircle(px, py, size);
     }
 
-    // Inner gold circle
-    g.fillStyle(0xf5c842, 0.6);
-    g.fillEllipse(cx, cy - 2, 32, 16);
-    g.fillStyle(0xfde68a, 0.9);
-    g.fillEllipse(cx, cy - 2, 14, 7);
+    // Secondary petal ring
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      const px = cx + Math.cos(angle) * 24;
+      const py = cy + Math.sin(angle) * 12 - 2;
+      g.fillStyle(0xf59e0b, 0.85);
+      g.fillCircle(px, py, 6);
+    }
+
+    // Inner gold circle representing the sacred Garbi / altar
+    g.fillStyle(0xf5c842, 0.75);
+    g.fillEllipse(cx, cy - 2, 36, 18);
+    g.fillStyle(0xfef08a, 0.95);
+    g.fillEllipse(cx, cy - 2, 16, 8);
+    g.fillStyle(0xffffff, 0.9);
+    g.fillCircle(cx, cy - 2, 3);
   }
 
   private drawDecorations() {
     this.decorGraphics = this.add.graphics();
-    const g = this.decorGraphics;
     const { width, height } = this.scale;
+    this.drawDecorationsGraphics(this.decorGraphics, width, height);
+  }
 
-    // Floating diyas (lamps) around the perimeter
+  private drawDecorationsGraphics(g: Phaser.GameObjects.Graphics, width: number, height: number) {
+    // Floating diyas (lamps) around the arena perimeter
     const diyaPositions = [
-      { x: width * 0.1,  y: height * 0.2 },
-      { x: width * 0.9,  y: height * 0.2 },
-      { x: width * 0.05, y: height * 0.6 },
-      { x: width * 0.95, y: height * 0.6 },
-      { x: width * 0.5,  y: height * 0.1 },
+      { x: width * 0.12, y: height * 0.22 },
+      { x: width * 0.88, y: height * 0.22 },
+      { x: width * 0.08, y: height * 0.52 },
+      { x: width * 0.92, y: height * 0.52 },
+      { x: width * 0.18, y: height * 0.80 },
+      { x: width * 0.82, y: height * 0.80 },
+      { x: width * 0.50, y: height * 0.12 },
+      { x: width * 0.50, y: height * 0.88 },
     ];
 
     diyaPositions.forEach(({ x, y }) => {
-      // Diya body
-      g.fillStyle(0xc9961e, 1);
-      g.fillEllipse(x, y + 6, 18, 8);
-      // Flame
-      g.fillStyle(0xf97316, 0.9);
-      g.fillEllipse(x, y - 2, 8, 12);
-      g.fillStyle(0xfde68a, 0.95);
-      g.fillEllipse(x, y - 4, 4, 7);
-      // Glow
-      g.fillStyle(0xf97316, 0.08);
-      g.fillCircle(x, y, 30);
+      // Warm ambient glow
+      g.fillStyle(0xf97316, 0.09);
+      g.fillCircle(x, y, 36);
+
+      // Diya clay body
+      g.fillStyle(0xca8a04, 1);
+      g.fillEllipse(x, y + 6, 20, 9);
+
+      // Flame outer
+      g.fillStyle(0xf97316, 0.92);
+      g.fillEllipse(x, y - 2, 9, 13);
+
+      // Flame inner
+      g.fillStyle(0xfef08a, 0.98);
+      g.fillEllipse(x, y - 4, 4, 8);
     });
 
-    // Stars/sparkles scattered on the outer canvas
-    for (let i = 0; i < 40; i++) {
-      const sx = Math.random() * width;
-      const sy = Math.random() * height * 0.3;
-      const sr = Math.random() * 1.5 + 0.5;
-      g.fillStyle(0xfde68a, Math.random() * 0.6 + 0.2);
+    // Ambient stars/sparkles scattered on the canvas
+    for (let i = 0; i < 50; i++) {
+      const sx = ((i * 137.5) % width);
+      const sy = (((i * 89.3) + 20) % (height * 0.45));
+      const sr = (i % 3 === 0) ? 1.8 : 1.0;
+      g.fillStyle(0xfef08a, 0.25 + (i % 5) * 0.1);
       g.fillCircle(sx, sy, sr);
     }
   }
 
   private setupParticles() {
-    // Create a particle texture
-    const pt = this.add.graphics();
-    pt.fillStyle(0xf5c842, 1);
-    pt.fillCircle(4, 4, 4);
-    pt.generateTexture('sparkle', 8, 8);
-    pt.destroy();
+    try {
+      if (!this.textures.exists('sparkle')) {
+        const pt = this.add.graphics();
+        pt.fillStyle(0xf5c842, 1);
+        pt.fillCircle(4, 4, 4);
+        pt.generateTexture('sparkle', 8, 8);
+        pt.destroy();
+      }
 
-    this.particles = this.add.particles(0, 0, 'sparkle', {
-      speed: { min: 40, max: 140 },
-      angle: { min: 0, max: 360 },
-      scale: { start: 0.9, end: 0 },
-      alpha: { start: 0.95, end: 0 },
-      lifespan: 550,
-      quantity: 0,
-      tint: [0xf5c842, 0xf97316, 0xe040fb, 0x2dd4bf],
-    });
+      this.particles = this.add.particles(0, 0, 'sparkle', {
+        speed: { min: 40, max: 140 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.9, end: 0 },
+        alpha: { start: 0.95, end: 0 },
+        lifespan: 550,
+        quantity: 0,
+        tint: [0xf5c842, 0xf97316, 0xe040fb, 0x2dd4bf],
+      });
+    } catch (e) {
+      console.warn('[GarbaScene] Particle setup warning:', e);
+    }
   }
 
   private setupInput() {
@@ -283,11 +365,13 @@ export class GarbaScene extends Phaser.Scene {
   }
 
   update(_time: number, _delta: number) {
+    if (!this.isSceneReady) return;
+
     this.moveThrottle++;
     if (this.moveThrottle < 2) return; // throttle to ~30 Hz
     this.moveThrottle = 0;
 
-    const SPEED = 3;
+    const SPEED = 3.5;
     let dx = 0;
     let dy = 0;
 
@@ -314,22 +398,38 @@ export class GarbaScene extends Phaser.Scene {
 
   setMySessionId(id: string) {
     this.mySessionId = id;
+    this.pendingMySessionId = id;
+
+    if (this.isSceneReady) {
+      const me = this.playerObjects.get(id);
+      if (me) me.setIsMe(true);
+    }
   }
 
   syncPlayers(players: Map<string, PlayerData>) {
+    // If scene is not yet created, buffer players to prevent crash
+    if (!this.isSceneReady || !this.add) {
+      this.pendingPlayers = new Map(players);
+      return;
+    }
+
     const seen = new Set<string>();
 
     players.forEach((data, sid) => {
       seen.add(sid);
-      const isMe = sid === this.mySessionId;
+      const isMe = (sid === this.mySessionId);
 
-      if (!this.playerObjects.has(sid)) {
-        // Create new player object
-        const po = new PlayerObject(this, data, isMe);
-        this.playerObjects.set(sid, po);
-      } else {
-        // Update existing
-        this.playerObjects.get(sid)!.syncData(data);
+      try {
+        if (!this.playerObjects.has(sid)) {
+          // Create new player object
+          const po = new PlayerObject(this, data, isMe);
+          this.playerObjects.set(sid, po);
+        } else {
+          // Update existing
+          this.playerObjects.get(sid)!.syncData(data);
+        }
+      } catch (err) {
+        console.error('[GarbaScene] Error syncing player', sid, err);
       }
     });
 
@@ -343,6 +443,11 @@ export class GarbaScene extends Phaser.Scene {
   }
 
   setDancing(dancing: boolean, style?: DanceStyle) {
+    if (!this.isSceneReady) {
+      this.pendingDancing = { dancing, style };
+      return;
+    }
+
     this.isDancing = dancing;
     if (style) {
       this.danceStyle = style;
@@ -381,15 +486,15 @@ class PlayerObject {
   private bobOffset = Math.random() * Math.PI * 2;
   private lastImpactTime = 0;
 
-  get x() { return this.container.x; }
-  get y() { return this.container.y; }
+  get x() { return this.container ? this.container.x : 0; }
+  get y() { return this.container ? this.container.y : 0; }
 
   constructor(scene: GarbaScene, data: PlayerData, isMe: boolean) {
     this.scene = scene;
     this.data = data;
     this.isMe = isMe;
     this.createObjects();
-    this.syncData(data);
+    this.syncData(data, true); // Snap immediately to world position
     this.prevX = this.container.x;
     this.prevY = this.container.y;
   }
@@ -412,34 +517,67 @@ class PlayerObject {
 
     // Name tag
     this.nameTag = scene.add.text(0, -56, this.data.nickname, {
-      fontFamily: 'Outfit',
+      fontFamily: 'Outfit, system-ui, sans-serif',
       fontSize: '13px',
       color: this.isMe ? '#f5c842' : '#fdf4e7',
       stroke: '#0d0814',
-      strokeThickness: 3,
+      strokeThickness: 3.5,
       align: 'center',
     }).setOrigin(0.5, 1);
 
-    if (this.isMe) {
-      this.nameTag.setText(`✦ ${this.data.nickname}`);
-    }
-    if (this.data.isHost) {
-      this.nameTag.setText(`👑 ${this.data.nickname}`);
-    }
-
+    this.updateNameTagText();
     this.container.add(this.nameTag);
   }
 
-  syncData(data: PlayerData) {
+  setIsMe(isMe: boolean) {
+    this.isMe = isMe;
+    this.updateNameTagText();
+  }
+
+  private updateNameTagText() {
+    if (!this.nameTag) return;
+    let label = this.data.nickname || 'Dancer';
+    if (this.isMe) {
+      label = `✦ ${label}`;
+      this.nameTag.setColor('#f5c842');
+    } else {
+      this.nameTag.setColor('#fdf4e7');
+    }
+    if (this.data.isHost) {
+      label = `👑 ${this.data.nickname}`;
+    }
+    this.nameTag.setText(label);
+  }
+
+  syncPositionImmediate() {
+    if (!this.container) return;
+    const screen = this.scene.worldToScreen(this.data.x, this.data.y);
+    this.container.x = screen.x;
+    this.container.y = screen.y;
+    this.container.setDepth(10 + screen.y * 0.01);
+  }
+
+  syncData(data: PlayerData, immediate = false) {
     this.data = data;
+    this.updateNameTagText();
+
     const screen = this.scene.worldToScreen(data.x, data.y);
-    // Smooth interpolation toward target
-    this.container.x = Phaser.Math.Linear(this.container.x, screen.x, 0.28);
-    this.container.y = Phaser.Math.Linear(this.container.y, screen.y, 0.28);
+    if (!this.container) return;
+
+    if (immediate || (this.container.x === 0 && this.container.y === 0)) {
+      this.container.x = screen.x;
+      this.container.y = screen.y;
+    } else {
+      // Smooth interpolation toward target
+      this.container.x = Phaser.Math.Linear(this.container.x, screen.x, 0.32);
+      this.container.y = Phaser.Math.Linear(this.container.y, screen.y, 0.32);
+    }
     this.container.setDepth(10 + screen.y * 0.01);
   }
 
   update(time: number, isLocalDancing: boolean) {
+    if (!this.container || !this.drawer) return;
+
     // Movement detection between frames
     const dx = this.container.x - this.prevX;
     const dy = this.container.y - this.prevY;
@@ -524,6 +662,10 @@ class PlayerObject {
   }
 
   destroy() {
-    this.container.destroy();
+    try {
+      this.container?.destroy();
+    } catch {
+      // ignore
+    }
   }
 }
