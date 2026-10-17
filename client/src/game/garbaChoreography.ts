@@ -16,6 +16,19 @@ import type { OutfitDef, AvatarDef } from '../types';
 export type DanceStyle = 'garba' | 'dandiya';
 export type ViewAngle = 'front' | 'iso' | 'side';
 
+/** Musical pattern phase: psi = 2π * (BPM / 60 / beatsPerPattern) * t + offset. */
+export function getRhythmPhase(
+  elapsedSeconds: number,
+  bpm: number,
+  beatsPerPattern: number,
+  phaseOffset = 0,
+): number {
+  const safeBpm = Number.isFinite(bpm) ? Math.max(1, bpm) : 116;
+  const safeBeats = Number.isFinite(beatsPerPattern) ? Math.max(1, beatsPerPattern) : 6;
+  const cycles = (Math.max(0, elapsedSeconds) * safeBpm) / (60 * safeBeats) + phaseOffset;
+  return ((cycles % 1) + 1) % 1;
+}
+
 export interface VectorDrawer {
   clear(): void;
   fillStyle(color: number | string, alpha?: number): void;
@@ -730,7 +743,11 @@ export function renderCharacter(
   const accentColor = hexToNum(outfit.colors[1]);
   const goldColor = 0xf5c842;
   const darkBorder = 0x0d0814;
-  const skinColor = hslToHex(avatar.colorHue, 0.42, 0.62);
+  const skinTones = [0xb87854, 0x9b6048, 0xc58d68, 0x81513f, 0xae7354, 0x704634];
+  const skinColor = skinTones[avatar.id % skinTones.length];
+  const skinLight = 0xd99a70;
+  const hairColor = avatar.id % 3 === 0 ? 0x211511 : avatar.id % 3 === 1 ? 0x30201a : 0x171311;
+  const isMaleAvatar = avatar.id === 1 || avatar.id === 3 || avatar.id === 5;
 
   // Isometric / Angle perspective scaling
   const angleScaleX = viewAngle === 'iso' ? 0.92 : viewAngle === 'side' ? 0.75 : 1.0;
@@ -754,61 +771,94 @@ export function renderCharacter(
     const fy = (cy + foot.y) * scale;
 
     // Foot base
-    g.fillStyle(primaryColor, 1);
+    g.fillStyle(0x211a19, 1);
     g.fillEllipse(fx, fy, 7 * scale, 4 * scale);
 
-    // Golden tip of traditional Mojri
+    // Curved mojri toe and understated zari seam
     g.fillStyle(goldColor, 1);
-    g.fillCircle(fx + (isRight ? 2 : -2) * scale, fy, 1.8 * scale);
+    g.fillCircle(fx + (isRight ? 5 : -5) * scale, fy - 1 * scale, 1.3 * scale);
+    g.lineStyle(0.8 * scale, 0xd6b56c, 0.85);
+    g.lineBetween(fx - 3 * scale, fy, fx + 2 * scale, fy);
   };
 
   drawFoot(pose.leftFoot, false);
   drawFoot(pose.rightFoot, true);
 
-  // 3. Flared Chaniya / Ghagra Skirt (Articulated dynamic flare with gota patti & mirror work)
+  // 3. Garba silhouette: a full pleated lehenga or a tailored kediyu and trousers.
   const skirtW = 20 * pose.skirtFlare * angleScaleX * scale;
   const skirtTopY = cy + 2 * scale;
   const skirtBottomY = cy + 16 * scale;
   const sway = pose.skirtSway * scale;
 
-  // Skirt base fabric
-  g.fillStyle(primaryColor, 1);
-  g.beginPath();
-  g.moveTo(cx - 8 * scale, skirtTopY);
-  g.lineTo(cx + 8 * scale, skirtTopY);
-  g.quadraticCurveTo(cx + skirtW + sway, skirtBottomY - 2 * scale, cx + skirtW * 0.8 + sway, skirtBottomY);
-  g.quadraticCurveTo(cx + sway, skirtBottomY + 4 * scale, cx - skirtW * 0.8 + sway, skirtBottomY);
-  g.quadraticCurveTo(cx - skirtW + sway, skirtBottomY - 2 * scale, cx - 8 * scale, skirtTopY);
-  g.closePath();
-  g.fillPath();
-
-  // Skirt golden border (Gota Patti hem)
-  g.lineStyle(2.5 * scale, goldColor, 0.95);
-  g.beginPath();
-  g.moveTo(cx - skirtW * 0.8 + sway, skirtBottomY);
-  g.quadraticCurveTo(cx + sway, skirtBottomY + 4 * scale, cx + skirtW * 0.8 + sway, skirtBottomY);
-  g.strokePath();
-
-  // Mirror work dots (Aabla embroidery) along skirt hem
-  const dotCount = 7;
-  for (let i = 0; i < dotCount; i++) {
-    const dt = (i + 0.5) / dotCount;
-    const dotX = lerp(cx - skirtW * 0.75 + sway, cx + skirtW * 0.75 + sway, dt);
-    const dotY = skirtBottomY + Math.sin(dt * Math.PI) * 2.5 * scale - 2 * scale;
-    g.fillStyle(0xffffff, 0.9);
-    g.fillCircle(dotX, dotY, 1.6 * scale);
-    g.fillStyle(accentColor, 0.6);
-    g.fillCircle(dotX, dotY, 0.9 * scale);
+  if (isMaleAvatar) {
+    // Cream churidar trousers visible beneath the longer, flared kediyu hem.
+    const stride = Math.abs(pose.leftFoot.x - pose.rightFoot.x) * 0.18;
+    g.fillStyle(0xe8dfd0, 1);
+    g.beginPath();
+    g.moveTo(cx - 6 * scale, skirtTopY);
+    g.lineTo(cx - 1 * scale, skirtTopY);
+    g.lineTo(cx - 2 * scale - stride, skirtBottomY + 1 * scale);
+    g.lineTo(cx - 9 * scale - stride, skirtBottomY + 1 * scale);
+    g.closePath(); g.fillPath();
+    g.beginPath();
+    g.moveTo(cx + 1 * scale, skirtTopY);
+    g.lineTo(cx + 6 * scale, skirtTopY);
+    g.lineTo(cx + 9 * scale + stride, skirtBottomY + 1 * scale);
+    g.lineTo(cx + 2 * scale + stride, skirtBottomY + 1 * scale);
+    g.closePath(); g.fillPath();
+    g.lineStyle(0.8 * scale, 0xb3a797, 0.75);
+    g.lineBetween(cx - 4 * scale, skirtTopY + 3 * scale, cx - 6 * scale - stride, skirtBottomY);
+    g.lineBetween(cx + 4 * scale, skirtTopY + 3 * scale, cx + 6 * scale + stride, skirtBottomY);
+  } else {
+    // Circular chaniya with a curved hem and deep, readable fabric folds.
+    g.fillStyle(primaryColor, 1);
+    g.beginPath();
+    g.moveTo(cx - 8 * scale, skirtTopY);
+    g.lineTo(cx + 8 * scale, skirtTopY);
+    g.quadraticCurveTo(cx + skirtW + sway, skirtBottomY - 2 * scale, cx + skirtW * 0.8 + sway, skirtBottomY);
+    g.quadraticCurveTo(cx + sway, skirtBottomY + 4 * scale, cx - skirtW * 0.8 + sway, skirtBottomY);
+    g.quadraticCurveTo(cx - skirtW + sway, skirtBottomY - 2 * scale, cx - 8 * scale, skirtTopY);
+    g.closePath(); g.fillPath();
+    for (let i = -3; i <= 3; i++) {
+      const foldX = cx + i * 4.6 * scale + sway * 0.48;
+      g.lineStyle(i % 2 === 0 ? 1.1 * scale : 0.7 * scale, i % 2 === 0 ? accentColor : 0xf9e3ae, i % 2 === 0 ? 0.38 : 0.26);
+      g.lineBetween(cx + i * 1.8 * scale, skirtTopY + 3 * scale, foldX, skirtBottomY - 1 * scale);
+    }
+    g.lineStyle(2 * scale, goldColor, 0.95);
+    g.beginPath();
+    g.moveTo(cx - skirtW * 0.8 + sway, skirtBottomY);
+    g.quadraticCurveTo(cx + sway, skirtBottomY + 4 * scale, cx + skirtW * 0.8 + sway, skirtBottomY);
+    g.strokePath();
+    for (let i = 0; i < 9; i++) {
+      const t = (i + 0.5) / 9;
+      const dotX = lerp(cx - skirtW * 0.7 + sway, cx + skirtW * 0.7 + sway, t);
+      const dotY = skirtBottomY + Math.sin(t * Math.PI) * 2 * scale - 1.5 * scale;
+      g.fillStyle(0xfff2d1, 0.9); g.fillCircle(dotX, dotY, 1 * scale);
+    }
   }
 
   // 4. Torso & Choli (with authentic tilt)
   const torsoY = cy - 6 * scale;
   g.fillStyle(skinColor, 1);
-  g.fillEllipse(cx, torsoY, 12 * angleScaleX * scale, 12 * scale, pose.torsoTilt);
+  g.fillEllipse(cx, torsoY, 6 * angleScaleX * scale, 10 * scale, pose.torsoTilt);
 
-  // Choli (festive blouse / top)
-  g.fillStyle(accentColor, 0.95);
-  g.fillEllipse(cx, torsoY + 2 * scale, 13 * angleScaleX * scale, 7 * scale, pose.torsoTilt);
+  // Fitted choli or embroidered kediyu, shaped at the shoulder and waist.
+  g.fillStyle(isMaleAvatar ? primaryColor : accentColor, 1);
+  g.beginPath();
+  g.moveTo(cx - 7 * scale, torsoY - 7 * scale);
+  g.quadraticCurveTo(cx, torsoY - 11 * scale, cx + 7 * scale, torsoY - 7 * scale);
+  g.lineTo(cx + 9 * scale, torsoY + 1 * scale);
+  g.lineTo(cx + 6 * scale, skirtTopY + 2 * scale);
+  g.lineTo(cx - 6 * scale, skirtTopY + 2 * scale);
+  g.lineTo(cx - 9 * scale, torsoY + 1 * scale);
+  g.closePath(); g.fillPath();
+  g.lineStyle(0.8 * scale, isMaleAvatar ? accentColor : goldColor, 0.8);
+  g.lineBetween(cx - 6 * scale, torsoY - 5 * scale, cx + 6 * scale, torsoY - 5 * scale);
+  for (let i = -1; i <= 1; i++) {
+    g.fillStyle(goldColor, 0.95);
+    g.fillCircle(cx + i * 4 * scale, torsoY - 1 * scale, 0.8 * scale);
+    g.fillCircle(cx + i * 3 * scale, torsoY + 3 * scale, 0.65 * scale);
+  }
 
   // Golden waist band (Kandora)
   g.lineStyle(1.8 * scale, goldColor, 0.9);
@@ -819,15 +869,33 @@ export function renderCharacter(
     skirtTopY + 1 * scale
   );
 
-  // 5. Dupatta / Odhani (Festive stole draped gracefully across torso)
-  g.fillStyle(accentColor, 0.85);
+  // 5. Dupatta / Odhani or a soft ivory stole inspired by the reference look.
+  g.fillStyle(isMaleAvatar ? 0xe8decb : accentColor, 0.96);
   g.beginPath();
-  g.moveTo(cx - 7 * angleScaleX * scale, torsoY - 8 * scale);
-  g.quadraticCurveTo(cx + 4 * scale + sway * 0.3, torsoY, cx + 8 * angleScaleX * scale, skirtTopY + 4 * scale);
-  g.lineTo(cx + 12 * angleScaleX * scale, skirtTopY + 7 * scale);
-  g.quadraticCurveTo(cx + 2 * scale + sway * 0.3, torsoY - 2 * scale, cx - 4 * angleScaleX * scale, torsoY - 9 * scale);
-  g.closePath();
-  g.fillPath();
+  if (isMaleAvatar) {
+    g.moveTo(cx - 8 * scale, torsoY - 9 * scale);
+    g.quadraticCurveTo(cx - 1 * scale, torsoY - 3 * scale, cx - 2 * scale + sway * 0.25, skirtBottomY + 2 * scale);
+    g.lineTo(cx - 8 * scale + sway * 0.25, skirtBottomY + 1 * scale);
+    g.quadraticCurveTo(cx - 10 * scale, torsoY + 2 * scale, cx - 13 * scale, torsoY - 5 * scale);
+    g.closePath(); g.fillPath();
+    g.lineStyle(0.9 * scale, accentColor, 0.92);
+    g.lineBetween(cx - 7 * scale, torsoY - 5 * scale, cx - 5 * scale + sway * 0.25, skirtBottomY);
+    g.fillStyle(0xe8decb, 0.96);
+    g.beginPath();
+    g.moveTo(cx + 3 * scale, torsoY - 8 * scale);
+    g.quadraticCurveTo(cx + 8 * scale, torsoY - 4 * scale, cx + 10 * scale, skirtBottomY + 1 * scale);
+    g.lineTo(cx + 4 * scale, skirtBottomY + 2 * scale);
+    g.quadraticCurveTo(cx + 1 * scale, torsoY + 1 * scale, cx - 1 * scale, torsoY - 7 * scale);
+    g.closePath(); g.fillPath();
+  } else {
+    g.moveTo(cx - 7 * angleScaleX * scale, torsoY - 8 * scale);
+    g.quadraticCurveTo(cx + 4 * scale + sway * 0.3, torsoY, cx + 8 * angleScaleX * scale, skirtTopY + 4 * scale);
+    g.lineTo(cx + 12 * angleScaleX * scale, skirtTopY + 7 * scale);
+    g.quadraticCurveTo(cx + 2 * scale + sway * 0.3, torsoY - 2 * scale, cx - 4 * angleScaleX * scale, torsoY - 9 * scale);
+    g.closePath(); g.fillPath();
+    g.lineStyle(0.8 * scale, goldColor, 0.88);
+    g.lineBetween(cx + 7 * scale, torsoY + 2 * scale, cx + 10 * scale + sway * 0.2, skirtTopY + 5 * scale);
+  }
 
   // 6. Head, Hair, & Facial Features
   const headY = cy - 24 * scale;
@@ -841,24 +909,31 @@ export function renderCharacter(
   g.fillStyle(skinColor, 1);
   g.fillCircle(headX, headY, 11 * scale);
 
-  // Hair / Paghadi (Turban) depending on avatar
-  const isMaleAvatar = avatar.id === 1 || avatar.id === 3 || avatar.id === 5;
+  // Individual hair silhouettes, with natural curls for the masculine avatars.
   if (isMaleAvatar) {
-    // Festive Gujarati Kediyu Turban (Paghadi)
-    g.fillStyle(primaryColor, 1);
-    g.fillEllipse(headX, headY - 7 * scale, 13 * scale, 7 * scale);
-    // Turban kalgi / gold ornament
-    g.fillStyle(goldColor, 1);
-    g.fillCircle(headX, headY - 10 * scale, 2.5 * scale);
+    g.fillStyle(hairColor, 1);
+    g.fillEllipse(headX, headY - 6 * scale, 11.8 * scale, 6.8 * scale);
+    for (let i = -2; i <= 2; i++) g.fillCircle(headX + i * 3.2 * scale, headY - 9 * scale + Math.abs(i) * 0.35 * scale, 2.8 * scale);
+    g.fillEllipse(headX - 9 * scale, headY - 1 * scale, 2.8 * scale, 5 * scale);
   } else {
-    // Traditional hair parting with Maang Tikka
-    g.fillStyle(0x1a0a00, 1);
-    g.fillEllipse(headX, headY - 6 * scale, 12 * scale, 6 * scale);
-    // Golden Maang Tikka & Bindi
+    g.fillStyle(hairColor, 1);
+    g.fillEllipse(headX, headY - 5.5 * scale, 12 * scale, 7.5 * scale);
+    // Long loose hair framing the cheeks; each avatar has a slightly different silhouette.
+    g.fillEllipse(headX - 9 * scale, headY + 2 * scale, 3 * scale, (avatar.id === 4 ? 9 : 7) * scale);
+    g.fillEllipse(headX + 9 * scale, headY + 2 * scale, 3 * scale, (avatar.id === 2 ? 10 : 7) * scale);
+    g.fillStyle(skinColor, 1);
+    g.fillCircle(headX, headY + 8 * scale, 3.8 * scale);
+    g.fillStyle(hairColor, 1);
+    g.lineStyle(1 * scale, hairColor, 1);
+    g.lineBetween(headX, headY - 11 * scale, headX - 1 * scale, headY - 3 * scale);
+    // Delicate maang tikka and bindi
     g.fillStyle(goldColor, 1);
-    g.fillCircle(headX, headY - 7 * scale, 1.8 * scale);
-    g.fillStyle(0xe53e3e, 1); // Red Bindi
-    g.fillCircle(headX, headY - 2 * scale, 1.6 * scale);
+    g.fillCircle(headX, headY - 4 * scale, 1.2 * scale);
+    g.fillStyle(0x8e2334, 1);
+    g.fillCircle(headX, headY + 1 * scale, 1.1 * scale);
+    g.fillStyle(goldColor, 0.9);
+    g.fillCircle(headX - 11 * scale, headY + 2 * scale, 1.5 * scale);
+    g.fillCircle(headX + 11 * scale, headY + 2 * scale, 1.5 * scale);
   }
 
   // Self indicator star
@@ -867,20 +942,29 @@ export function renderCharacter(
     g.fillCircle(headX, headY - 14 * scale, 2.2 * scale);
   }
 
-  // Eyes
-  g.fillStyle(darkBorder, 1);
-  g.fillCircle(headX - 3.5 * angleScaleX * scale, headY + 1 * scale, 1.6 * scale);
-  g.fillCircle(headX + 3.5 * angleScaleX * scale, headY + 1 * scale, 1.6 * scale);
+  // Soft cheek light, expressive brows, shaped eyes, and nose.
+  g.fillStyle(skinLight, 0.28);
+  g.fillEllipse(headX - 6 * scale, headY + 4 * scale, 2.2 * scale, 1.3 * scale);
+  g.fillEllipse(headX + 6 * scale, headY + 4 * scale, 2.2 * scale, 1.3 * scale);
+  g.lineStyle(0.9 * scale, hairColor, 0.9);
+  g.lineBetween(headX - 5 * scale, headY - 2 * scale, headX - 2 * scale, headY - 2.5 * scale);
+  g.lineBetween(headX + 2 * scale, headY - 2.5 * scale, headX + 5 * scale, headY - 2 * scale);
+  g.fillStyle(0x211610, 1);
+  g.fillEllipse(headX - 3.5 * angleScaleX * scale, headY + 0.5 * scale, 1.05 * scale, 1.5 * scale);
+  g.fillEllipse(headX + 3.5 * angleScaleX * scale, headY + 0.5 * scale, 1.05 * scale, 1.5 * scale);
 
   // Eye highlights
   g.fillStyle(0xffffff, 0.9);
-  g.fillCircle(headX - 4 * angleScaleX * scale, headY + 0.5 * scale, 0.6 * scale);
-  g.fillCircle(headX + 3 * angleScaleX * scale, headY + 0.5 * scale, 0.6 * scale);
+  g.fillCircle(headX - 3.8 * angleScaleX * scale, headY, 0.45 * scale);
+  g.fillCircle(headX + 3.2 * angleScaleX * scale, headY, 0.45 * scale);
+
+  g.lineStyle(0.7 * scale, 0x784d3a, 0.72);
+  g.lineBetween(headX, headY + 1 * scale, headX - 0.4 * scale, headY + 3 * scale);
 
   // Smile
   g.lineStyle(1.4 * scale, darkBorder, 0.85);
   g.beginPath();
-  g.arc(headX, headY + 3.5 * scale, 3 * scale, 0.2, Math.PI - 0.2);
+  g.arc(headX, headY + 3.5 * scale, 2.6 * scale, 0.24, Math.PI - 0.24);
   g.strokePath();
 
   // 7. Articulated Arms & Hands
@@ -900,6 +984,17 @@ export function renderCharacter(
     g.moveTo(shoulderX, shoulderY);
     g.quadraticCurveTo(elbowX, elbowY, handX, handY);
     g.strokePath();
+
+    // Short embroidered sleeve follows the shoulder through the first part of the arm.
+    const sleeveX = lerp(shoulderX, handX, 0.28) + (isLeft ? -1.8 : 1.8) * scale;
+    const sleeveY = lerp(shoulderY, handY, 0.28) + 1.6 * scale;
+    g.lineStyle(4.8 * scale, isMaleAvatar ? primaryColor : accentColor, 1);
+    g.beginPath();
+    g.moveTo(shoulderX, shoulderY);
+    g.quadraticCurveTo(lerp(shoulderX, elbowX, 0.55), lerp(shoulderY, elbowY, 0.55), sleeveX, sleeveY);
+    g.strokePath();
+    g.fillStyle(goldColor, 0.95);
+    g.fillCircle(sleeveX, sleeveY, 0.9 * scale);
 
     // Golden bangles (Chuda) on wrists
     g.fillStyle(goldColor, 1);
@@ -922,6 +1017,14 @@ export function renderCharacter(
 
   drawArm(leftShoulderX, leftShoulderY, leftHandX, leftHandY, true);
   drawArm(rightShoulderX, rightShoulderY, rightHandX, rightHandY, false);
+
+  // Fine collar necklace and a central pendant catch the warm festival light.
+  g.lineStyle(0.9 * scale, goldColor, 0.92);
+  g.beginPath();
+  g.arc(headX, headY + 11 * scale, 5.3 * scale, 0.18, Math.PI - 0.18);
+  g.strokePath();
+  g.fillStyle(goldColor, 1);
+  g.fillCircle(headX, headY + 15.7 * scale, 1.3 * scale);
 
   // 8. Dandiya Sticks (Rendered when pose.hasDandiya is active)
   if (pose.hasDandiya && pose.leftStick && pose.rightStick) {
@@ -994,7 +1097,7 @@ export function renderCharacter(
 /**
  * Helper to convert HSL to Hex number
  */
-function hslToHex(h: number, s: number, l: number): number {
+export function hslToHex(h: number, s: number, l: number): number {
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const hp = (h % 360) / 60;
   const x = c * (1 - Math.abs((hp % 2) - 1));

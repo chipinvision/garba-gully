@@ -20,6 +20,7 @@ import {
   getDandiyaPose,
   getIdlePose,
   getWalkPose,
+  getRhythmPhase,
   renderCharacter,
   createPhaserDrawer,
 } from './garbaChoreography';
@@ -64,6 +65,10 @@ export class GarbaScene extends Phaser.Scene {
   private moveThrottle = 0;
   private isDancing = false;
   private danceStyle: DanceStyle = 'garba';
+  private tempoBpm = 116;
+  private musicState: 'playing' | 'paused' = 'paused';
+  private musicPositionSeconds = 0;
+  private musicCommandAt = 0;
 
   // Callbacks to React
   onMove?: (dx: number, dy: number) => void;
@@ -92,10 +97,10 @@ export class GarbaScene extends Phaser.Scene {
 
       // Solid background with optional gradient
       const bg = this.add.graphics();
-      bg.fillStyle(0x0c0616, 1);
+      bg.fillStyle(0x090b10, 1);
       bg.fillRect(0, 0, width, height);
       try {
-        bg.fillGradientStyle(0x0c0616, 0x0c0616, 0x180b2a, 0x180b2a, 1);
+        bg.fillGradientStyle(0x080a10, 0x080a10, 0x2c2115, 0x2c2115, 1);
         bg.fillRect(0, 0, width, height);
       } catch {
         // Fallback for non-WebGL renderers
@@ -163,14 +168,14 @@ export class GarbaScene extends Phaser.Scene {
 
         const { x, y } = isoToScreen(tx, ty, this.originX, this.originY);
 
-        // Alternating tile colors (festive rangoli pattern)
+        // Warm compacted earth, like an open-air Garba ground under night lights.
         const isAlt = (Math.abs(tx + ty) % 2 === 0);
         const isEdge = dist > FLOOR_RADIUS - 1.25;
         const isCenter = dist < 2.2;
 
-        let fillColor = isAlt ? 0x1d0d34 : 0x251240;
-        if (isEdge) fillColor = isAlt ? 0x4c1d95 : 0x3b1079;
-        if (isCenter) fillColor = isAlt ? 0x3b0764 : 0x4a044e;
+        let fillColor = isAlt ? 0x8b6945 : 0x96734c;
+        if (isEdge) fillColor = isAlt ? 0x725236 : 0x795a3b;
+        if (isCenter) fillColor = isAlt ? 0x88613e : 0x8f6842;
 
         // Top face
         g.fillStyle(fillColor, 1);
@@ -183,7 +188,7 @@ export class GarbaScene extends Phaser.Scene {
         g.fillPath();
 
         // Tile border
-        g.lineStyle(1, 0x8b5cf6, isEdge ? 0.65 : 0.22);
+        g.lineStyle(1, isEdge ? 0xd9b875 : 0x60472f, isEdge ? 0.42 : 0.14);
         g.beginPath();
         g.moveTo(x, y - TILE_H / 2);
         g.lineTo(x + TILE_W / 2, y);
@@ -192,7 +197,7 @@ export class GarbaScene extends Phaser.Scene {
         g.closePath();
         g.strokePath();
 
-        // Gold dot at center of edge tiles (traditional rangoli dots)
+        // Small brass markers along the edge of the dance circle.
         if (isEdge && dist > FLOOR_RADIUS - 0.9) {
           g.fillStyle(0xf5c842, 0.85);
           g.fillCircle(x, y, 2.5);
@@ -246,7 +251,76 @@ export class GarbaScene extends Phaser.Scene {
   }
 
   private drawDecorationsGraphics(g: Phaser.GameObjects.Graphics, width: number, height: number) {
-    // Floating diyas (lamps) around the arena perimeter
+    // Open-air mandap: warm festoon strands radiating from a central light tower.
+    const hubX = width * 0.5;
+    const hubY = height * 0.055;
+    const groundX = width * 0.5;
+    const groundY = height * 0.48;
+
+    // Slender central tower and its warmly lit crown sit behind the dancers.
+    g.fillStyle(0x211b20, 0.75);
+    g.fillEllipse(hubX, hubY + 3, Math.max(30, width * 0.09), 15);
+    g.lineStyle(Math.max(2, width * 0.004), 0x5d382c, 0.72);
+    g.lineBetween(hubX - 5, hubY + 10, groundX - 3, groundY);
+    g.lineBetween(hubX + 5, hubY + 10, groundX + 3, groundY);
+    g.lineStyle(1, 0xe2b851, 0.58);
+    for (let tier = 0; tier < 5; tier++) {
+      const y = hubY + 22 + tier * ((groundY - hubY - 28) / 5);
+      const spread = 8 + tier * 3;
+      g.lineBetween(hubX - spread, y, hubX + spread, y);
+      g.fillStyle(0xf7c950, 0.9);
+      g.fillCircle(hubX - spread, y, 1.6);
+      g.fillCircle(hubX + spread, y, 1.6);
+    }
+
+    // Alternating strings curve gently across the sky, with soft bulbs along each run.
+    const strands = 15;
+    for (let i = 0; i <= strands; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const t = i / strands;
+      const endX = width * (0.04 + t * 0.92);
+      const endY = height * (0.18 + (i % 4) * 0.035);
+      const bendX = (hubX + endX) / 2;
+      const bendY = hubY + height * (0.11 + (i % 3) * 0.025);
+      g.lineStyle(1.4, 0xd8c9ac, 0.62);
+      g.beginPath();
+      g.moveTo(hubX, hubY);
+      for (let step = 1; step <= 10; step++) {
+        const u = step / 10;
+        const inv = 1 - u;
+        g.lineTo(inv * inv * hubX + 2 * inv * u * bendX + u * u * endX,
+          inv * inv * hubY + 2 * inv * u * bendY + u * u * endY);
+      }
+      g.strokePath();
+
+      for (let bulb = 1; bulb <= 8; bulb++) {
+        const u = bulb / 9;
+        const inv = 1 - u;
+        const x = inv * inv * hubX + 2 * inv * u * bendX + u * u * endX;
+        const y = inv * inv * hubY + 2 * inv * u * bendY + u * u * endY;
+        const radius = bulb % 3 === 0 ? 2.5 : 1.8;
+        g.fillStyle(0xffd96f, 0.1);
+        g.fillCircle(x, y, radius * 4.5);
+        g.fillStyle(0xfff1ca, 0.95);
+        g.fillCircle(x, y, radius);
+      }
+      // Subtle guy-line glow continuing out to the edge of the canopy.
+      if (side < 0) {
+        g.fillStyle(0xf6d990, 0.24);
+        g.fillCircle(endX, endY, 3.2);
+      }
+    }
+
+    // Small overhead crown lights anchor the pavilion visually.
+    for (let i = 0; i < 7; i++) {
+      const x = hubX + (i - 3) * 8;
+      g.fillStyle(0xffd166, 0.12);
+      g.fillCircle(x, hubY + 13, 9);
+      g.fillStyle(0xfff0c2, 0.95);
+      g.fillCircle(x, hubY + 13, 2.2);
+    }
+
+    // Clay diyas at the edge of the arena.
     const diyaPositions = [
       { x: width * 0.12, y: height * 0.22 },
       { x: width * 0.88, y: height * 0.22 },
@@ -260,8 +334,8 @@ export class GarbaScene extends Phaser.Scene {
 
     diyaPositions.forEach(({ x, y }) => {
       // Warm ambient glow
-      g.fillStyle(0xf97316, 0.09);
-      g.fillCircle(x, y, 36);
+      g.fillStyle(0xf97316, 0.08);
+      g.fillCircle(x, y, 30);
 
       // Diya clay body
       g.fillStyle(0xca8a04, 1);
@@ -276,10 +350,10 @@ export class GarbaScene extends Phaser.Scene {
       g.fillEllipse(x, y - 4, 4, 8);
     });
 
-    // Ambient stars/sparkles scattered on the canvas
+    // Faint distant night lights beyond the canopy.
     for (let i = 0; i < 50; i++) {
       const sx = ((i * 137.5) % width);
-      const sy = (((i * 89.3) + 20) % (height * 0.45));
+      const sy = (((i * 89.3) + 20) % (height * 0.22));
       const sr = (i % 3 === 0) ? 1.8 : 1.0;
       g.fillStyle(0xfef08a, 0.25 + (i % 5) * 0.1);
       g.fillCircle(sx, sy, sr);
@@ -364,6 +438,18 @@ export class GarbaScene extends Phaser.Scene {
     return this.danceStyle;
   }
 
+  setMusicClock(
+    state: 'playing' | 'paused',
+    positionSeconds: number,
+    commandAt: number,
+    bpm: number,
+  ) {
+    this.musicState = state;
+    this.musicPositionSeconds = Math.max(0, positionSeconds || 0);
+    this.musicCommandAt = commandAt || 0;
+    this.tempoBpm = Math.min(200, Math.max(40, bpm || 116));
+  }
+
   update(_time: number, _delta: number) {
     if (!this.isSceneReady) return;
 
@@ -381,16 +467,17 @@ export class GarbaScene extends Phaser.Scene {
     if (this.cursors?.down?.isDown  || this.wasd?.down?.isDown)  dy += SPEED;
 
     if (dx !== 0 || dy !== 0) {
-      if (this.isDancing) {
-        this.isDancing = false;
-        this.onDanceToggle?.(false, this.danceStyle);
-      }
       this.onMove?.(dx, dy);
     }
 
     // Animate all players with authentic Garba & Dandiya kinematics
+    const musicElapsed = this.musicPositionSeconds + (
+      this.musicState === 'playing' && this.musicCommandAt > 0
+        ? Math.max(0, Date.now() - this.musicCommandAt) / 1000
+        : 0
+    );
     this.playerObjects.forEach((po, sid) => {
-      po.update(_time, sid === this.mySessionId && this.isDancing);
+      po.update(_time, sid === this.mySessionId && this.isDancing, musicElapsed, this.tempoBpm);
     });
   }
 
@@ -575,7 +662,7 @@ class PlayerObject {
     this.container.setDepth(10 + screen.y * 0.01);
   }
 
-  update(time: number, isLocalDancing: boolean) {
+  update(time: number, isLocalDancing: boolean, musicElapsed: number, bpm: number) {
     if (!this.container || !this.drawer) return;
 
     // Movement detection between frames
@@ -597,23 +684,28 @@ class PlayerObject {
 
     let pose;
 
-    if (isMoving) {
-      // Walking pose with alternating grounded foot plants
-      this.stridePhase = (this.stridePhase + 0.065) % 1.0;
-      pose = getWalkPose(this.stridePhase, currentStyle);
-      this.danceRing.clear();
-    } else if (isDancing) {
+    if (isDancing) {
       // Authentic dance choreography
       if (currentStyle === 'dandiya') {
-        // Dandiya Raas: 4-beat energetic cycle (~1.9s per loop)
-        const cycleDuration = 1900;
-        const phase = ((time + this.bobOffset * 1000) % cycleDuration) / cycleDuration;
+        // Dandiya Raas follows a four-beat phrase locked to the shared music clock.
+        const phase = getRhythmPhase(musicElapsed, bpm, 4);
         pose = getDandiyaPose(phase);
       } else {
-        // Gujarati Garba: 6-beat Tran Tali cycle (~3.2s per loop)
-        const cycleDuration = 3200;
-        const phase = ((time + this.bobOffset * 1000) % cycleDuration) / cycleDuration;
+        // Tran Tali keeps its six-beat cycle; its accents are defined in the pose map.
+        const phase = getRhythmPhase(musicElapsed, bpm, 6);
         pose = getGarbaPose(phase);
+      }
+
+      if (isMoving) {
+        // Blend directional stepping into the ongoing choreography while keeping
+        // its beat, hand gestures, and Dandiya strikes intact.
+        const travel = getWalkPose((time % 900) / 900, currentStyle);
+        const mix = 0.32;
+        pose.bodyY += travel.bodyY * mix;
+        pose.torsoTilt += travel.torsoTilt * mix;
+        pose.leftFoot = { ...travel.leftFoot, x: pose.leftFoot.x * (1 - mix) + travel.leftFoot.x * mix };
+        pose.rightFoot = { ...travel.rightFoot, x: pose.rightFoot.x * (1 - mix) + travel.rightFoot.x * mix };
+        pose.skirtSway += travel.skirtSway * mix;
       }
 
       // Draw glowing floral lotus ring on ground
@@ -642,6 +734,10 @@ class PlayerObject {
           8
         );
       }
+    } else if (isMoving) {
+      this.stridePhase = (this.stridePhase + 0.065) % 1.0;
+      pose = getWalkPose(this.stridePhase, currentStyle);
+      this.danceRing.clear();
     } else {
       // Natural resting stance with breathing bob
       pose = getIdlePose(time + this.bobOffset * 1000, currentStyle);

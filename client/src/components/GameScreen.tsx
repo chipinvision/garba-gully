@@ -93,7 +93,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         parent: containerRef.current,
         width: initialWidth,
         height: initialHeight,
-        backgroundColor: '#0c0616',
+        backgroundColor: '#090b10',
         scene: [scene],
         scale: {
           mode: Phaser.Scale.RESIZE,
@@ -129,6 +129,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       sceneRef.current.setMySessionId(sessionId);
     }
   }, [sessionId]);
+
+  // Anchor every dancer's choreography to the shared playback position.
+  useEffect(() => {
+    sceneRef.current?.setMusicClock(
+      playbackState,
+      playbackPositionSeconds,
+      lastPlaybackCommandAt,
+      danceStyle === 'garba' ? 116 : 132,
+    );
+  }, [playbackState, playbackPositionSeconds, lastPlaybackCommandAt, danceStyle]);
 
   // ── Sync players to scene ────────────────────────────────────────────────
   useEffect(() => {

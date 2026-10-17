@@ -65,12 +65,12 @@ export const AVATARS: AvatarDef[] = [
 ];
 
 export const OUTFITS: OutfitDef[] = [
-  { id: 0, name: 'Chaniya Choli',  emoji: '🔴', colors: ['#e53e3e', '#fbbf24'] },
-  { id: 1, name: 'Kediyu',         emoji: '🟡', colors: ['#d69e2e', '#ed8936'] },
-  { id: 2, name: 'Ghagra Set',     emoji: '🟣', colors: ['#805ad5', '#ed64a6'] },
-  { id: 3, name: 'Navratri Blue',  emoji: '🔵', colors: ['#3182ce', '#2dd4bf'] },
-  { id: 4, name: 'Royal Green',    emoji: '🟢', colors: ['#276749', '#f6e05e'] },
-  { id: 5, name: 'Sunset Pink',    emoji: '🩷', colors: ['#ed64a6', '#f97316'] },
+  { id: 0, name: 'Gulabi Bandhani', emoji: '🌺', colors: ['#a9273c', '#f0c66e'] },
+  { id: 1, name: 'Midnight Mirror', emoji: '🖤', colors: ['#17151c', '#a83f36'] },
+  { id: 2, name: 'Royal Violet',    emoji: '🪻', colors: ['#583b83', '#e4a1bd'] },
+  { id: 3, name: 'Monsoon Teal',    emoji: '🪷', colors: ['#176a70', '#e7bd61'] },
+  { id: 4, name: 'Kesar Saffron',   emoji: '🌼', colors: ['#b84e22', '#f2cb67'] },
+  { id: 5, name: 'Emerald Zari',    emoji: '💚', colors: ['#25634a', '#e7c46b'] },
 ];
 
 // Ground bounds (must match server)

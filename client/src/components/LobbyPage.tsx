@@ -273,44 +273,55 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
   );
 };
 
-// Simple SVG avatar preview
+// Detailed SVG fitting preview, matched to the in-room character silhouettes.
 const AvatarPreview: React.FC<{ avatarId: number; outfitId: number }> = ({ avatarId, outfitId }) => {
   const outfit = OUTFITS[outfitId] ?? OUTFITS[0];
   const avatar = AVATARS[avatarId] ?? AVATARS[0];
-  // Compute skin hue as a color
-  const hue = avatar.colorHue;
-  const skinLight = 60;
-  const skinSat = 45;
-  const skin = `hsl(${hue}, ${skinSat}%, ${skinLight}%)`;
+  const skinTones = ['#b87854', '#9b6048', '#c58d68', '#81513f', '#ae7354', '#704634'];
+  const skin = skinTones[avatar.id % skinTones.length];
   const primary = outfit.colors[0];
   const accent  = outfit.colors[1];
+  const isMale = avatar.id === 1 || avatar.id === 3 || avatar.id === 5;
 
   return (
     <svg width="120" height="160" viewBox="-60 -90 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* Shadow */}
-      <ellipse cx="0" cy="35" rx="28" ry="10" fill="rgba(0,0,0,0.35)" />
-      {/* Skirt */}
-      <ellipse cx="0" cy="22" rx="26" ry="14" fill={primary} />
-      {/* Torso */}
-      <ellipse cx="0" cy="2" rx="18" ry="18" fill={skin} />
-      {/* Outfit top */}
-      <ellipse cx="0" cy="4" rx="20" ry="10" fill={accent} opacity="0.85" />
-      {/* Head */}
-      <circle cx="0" cy="-20" r="18" fill={skin} />
-      {/* Eyes */}
-      <circle cx="-5" cy="-22" r="2.5" fill="#1a0a00" />
-      <circle cx="5"  cy="-22" r="2.5" fill="#1a0a00" />
-      {/* Bindi */}
-      <circle cx="0" cy="-28" r="2.5" fill="#f5c842" />
-      {/* Smile */}
-      <path d="M -5,-17 Q 0,-13 5,-17" fill="none" stroke="#1a0a00" strokeWidth="1.5" strokeLinecap="round" />
-      {/* Dandiya sticks */}
-      <line x1="-18" y1="-8" x2="-32" y2="8" stroke={accent} strokeWidth="3.5" strokeLinecap="round" />
-      <line x1="18"  y1="-8" x2="32"  y2="8" stroke={accent} strokeWidth="3.5" strokeLinecap="round" />
-      <circle cx="-32" cy="8" r="5" fill={accent} />
-      <circle cx="32"  cy="8" r="5" fill={accent} />
-      {/* Crown indicator */}
-      <text x="0" y="-45" textAnchor="middle" fontSize="18">{avatar.emoji}</text>
+      <defs>
+        <linearGradient id="preview-fabric" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stopColor={accent} />
+          <stop offset="1" stopColor={primary} />
+        </linearGradient>
+        <linearGradient id="preview-skin" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stopColor="#e0a17a" />
+          <stop offset="1" stopColor={skin} />
+        </linearGradient>
+      </defs>
+      <ellipse cx="0" cy="35" rx="27" ry="8" fill="rgba(0,0,0,0.38)" />
+      {isMale ? <>
+        <path d="M-12 3h10l-2 30h-12zM2 3h10l4 30H2z" fill="#e8dfd0" />
+        <path d="M-13 -14 Q0 -21 13 -14 L16 9 Q12 15 10 21 L-10 21 Q-12 13 -16 9z" fill="url(#preview-fabric)" stroke="#d6b56c" strokeWidth="1.2" />
+        <path d="M-8 -11Q-2 -7-4 18M8 -11Q2 -7 4 18" fill="none" stroke="#f3d899" strokeWidth="1" opacity=".75" />
+        <path d="M-10 -16Q-7 -6-9 27l-5 0Q-15-5-15-13zM3-15Q8-9 10 28h-5Q1 1-3-10z" fill="#e8decb" stroke={accent} strokeWidth="1" />
+      </> : <>
+        <path d="M-9 3h18Q16 17 26 32Q0 41-26 32Q-16 14-9 3z" fill="url(#preview-fabric)" stroke="#e8c66e" strokeWidth="1.5" />
+        {[-16,-9,-3,4,11,18].map((x) => <path key={x} d={`M0 3Q${x} 15 ${x * 1.4} 32`} fill="none" stroke="#f1d58e" strokeWidth=".8" opacity=".62" />)}
+        <path d="M-12 -15Q0-20 12-15L15 2H-15z" fill={accent} stroke="#e8c66e" strokeWidth="1" />
+        <path d="M-12 -14Q-2 -6 11 -10L14 3" fill="none" stroke="#f0c66e" strokeWidth="2" />
+        <path d="M-2 4h4" stroke="#e8c66e" strokeWidth="2" />
+      </>}
+      <path d="M-7-20v8h14v-8" fill="url(#preview-skin)" />
+      <ellipse cx="0" cy="-27" rx="14" ry="17" fill="url(#preview-skin)" />
+      {isMale ? <path d="M-14-29Q-15-47 0-45Q15-45 14-29L10-32 8-39Q0-34-9-37L-12-31z" fill="#211813" /> : <>
+        <path d="M-14-29Q-16-45 0-46Q16-45 14-29L12-20Q19-15 14-5L9-12 8-35Q0-31-8-35L-10-12-15-7Q-20-19-12-22z" fill="#211813" />
+        <circle cx="0" cy="-31" r="1.7" fill="#edc76b" />
+        <circle cx="0" cy="-24" r="1.5" fill="#8e2334" />
+      </>}
+      <path d="M-7-28l4-1M3-29l4 1" stroke="#39241d" strokeWidth="1.2" strokeLinecap="round" />
+      <ellipse cx="-4" cy="-25" rx="1.4" ry="2" fill="#261812" />
+      <ellipse cx="4" cy="-25" rx="1.4" ry="2" fill="#261812" />
+      <path d="M0-23v3M-4-17Q0-14 4-17" fill="none" stroke="#704634" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M-8 1Q0 5 8 1" fill="none" stroke="#e9ca78" strokeWidth="1.2" />
+      <circle cx="-13" cy="-22" r="1.5" fill="#e9ca78" />
+      <circle cx="13" cy="-22" r="1.5" fill="#e9ca78" />
     </svg>
   );
 };
